@@ -2,7 +2,7 @@
   "name": "Neststash - Home Shopping Tracker",
   "short_name": "Neststash",
   "description": "Track items you're interested in for your new house while shopping",
-  "start_url": "/",
+  "start_url": "/neststash/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",

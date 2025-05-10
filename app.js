@@ -462,6 +462,24 @@ function setupEventListeners() {
             cancelEdit();
         }
     });
+
+    // Add these new event listeners
+    const exportDataBtn = document.getElementById('export-data');
+    const importDataInput = document.getElementById('import-data');
+
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', exportData);
+    }
+
+    if (importDataInput) {
+        importDataInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importData(e.target.files[0]);
+                // Reset the input so the same file can be selected again
+                e.target.value = '';
+            }
+        });
+    }
 }
 
 // Update sort buttons UI
@@ -1105,4 +1123,104 @@ document.addEventListener('DOMContentLoaded', function() {
             editItem(itemId);
         }
     });
-}); 
+});
+
+// Export data to JSON file
+function exportData() {
+    if (!db) {
+        alert('Database not ready. Please try again.');
+        return;
+    }
+
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+        const items = request.result;
+        const data = {
+            items: items,
+            settings: appSettings,
+            exportDate: new Date().toISOString()
+        };
+
+        // Create and download the file
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `neststash-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Show success message
+        showMessage('Data exported successfully!');
+    };
+
+    request.onerror = () => {
+        showMessage('Error exporting data. Please try again.', true);
+    };
+}
+
+// Import data from JSON file
+function importData(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Validate the data structure
+            if (!data.items || !Array.isArray(data.items)) {
+                throw new Error('Invalid data format');
+            }
+
+            // Confirm with user
+            if (!confirm(`This will import ${data.items.length} items. Existing items will be preserved. Continue?`)) {
+                return;
+            }
+
+            // Import items
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            // Add each item
+            data.items.forEach(item => {
+                // Remove id to ensure new id is generated
+                delete item.id;
+                store.add(item);
+            });
+
+            transaction.oncomplete = () => {
+                showMessage('Data imported successfully!');
+                loadItems(); // Refresh the items display
+            };
+
+            transaction.onerror = () => {
+                showMessage('Error importing data. Please try again.', true);
+            };
+
+        } catch (error) {
+            console.error('Import error:', error);
+            showMessage('Invalid file format. Please select a valid backup file.', true);
+        }
+    };
+
+    reader.onerror = () => {
+        showMessage('Error reading file. Please try again.', true);
+    };
+
+    reader.readAsText(file);
+}
+
+// Helper function to show messages
+function showMessage(message, isError = false) {
+    const messageEl = document.createElement('div');
+    messageEl.className = `success-message ${isError ? 'error' : ''}`;
+    messageEl.textContent = message;
+    document.body.appendChild(messageEl);
+    setTimeout(() => messageEl.remove(), 3000);
+} 

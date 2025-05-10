@@ -213,6 +213,16 @@
                         <option value="price-desc">Price (high to low)</option>
                     </select>
                 </div>
+                <div class="settings-row data-management">
+                    <label>Data Management:</label>
+                    <div class="data-buttons">
+                        <button id="export-data" class="btn secondary full-width">Export Data</button>
+                        <label for="import-data" class="btn secondary full-width">
+                            Import Data
+                            <input type="file" id="import-data" accept=".json" style="display: none;">
+                        </label>
+                    </div>
+                </div>
                 <button id="save-settings" class="btn primary">Save Settings</button>
             </div>
         </div>
@@ -223,7 +233,7 @@
         // Register service worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
+                navigator.serviceWorker.register('/neststash/service-worker.js')
                     .then(registration => {
                         console.log('ServiceWorker registration successful');
                     })

@@ -1,16 +1,17 @@
 const CACHE_NAME = 'neststash-v1';
+const BASE_PATH = '/neststash';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/styles.css',
-  '/manifest.json',
-  '/public/icon-192.png',
-  '/public/icon-192-maskable.png',
-  '/public/icon-512.png',
-  '/public/icon-512-maskable.png',
-  '/public/favicon.ico',
-  '/public/apple-touch-icon.png'
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
+  `${BASE_PATH}/app.js`,
+  `${BASE_PATH}/styles.css`,
+  `${BASE_PATH}/manifest.json`,
+  `${BASE_PATH}/public/icon-192.png`,
+  `${BASE_PATH}/public/icon-192-maskable.png`,
+  `${BASE_PATH}/public/icon-512.png`,
+  `${BASE_PATH}/public/icon-512-maskable.png`,
+  `${BASE_PATH}/public/favicon.ico`,
+  `${BASE_PATH}/public/apple-touch-icon.png`
 ];
 
 // Install event - cache assets

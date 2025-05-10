@@ -993,4 +993,73 @@ input[type="file"] {
 .no-items .btn {
     margin-top: 15px;
     display: inline-block;
+}
+
+/* Data Management Styles */
+.data-management {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.data-management label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.data-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.data-buttons .btn {
+    margin: 0;
+    text-align: center;
+    justify-content: center;
+}
+
+/* Make buttons full width on mobile */
+.full-width {
+    width: 100%;
+}
+
+/* Adjust spacing for the settings modal on mobile */
+@media (max-width: 480px) {
+    .settings-section {
+        padding: 1rem;
+    }
+
+    .settings-row {
+        margin-bottom: 1.25rem;
+    }
+
+    .data-management {
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+    }
+
+    .data-buttons {
+        gap: 0.5rem;
+    }
+
+    /* Ensure buttons have enough touch target size */
+    .data-buttons .btn {
+        padding: 0.75rem 1rem;
+        min-height: 44px;
+    }
+}
+
+/* Desktop layout */
+@media (min-width: 481px) {
+    .data-buttons {
+        flex-direction: row;
+        gap: 1rem;
+    }
+
+    .data-buttons .btn {
+        flex: 1;
+    }
 } 
