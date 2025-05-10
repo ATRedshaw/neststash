@@ -6,10 +6,10 @@
 }
 
 :root {
-    --primary-color: #4361ee;
-    --primary-hover: #3a56d4;
-    --secondary-color: #3f37c9;
-    --accent-color: #4cc9f0;
+    --primary-color: #2ecc71;
+    --primary-hover: #27ae60;
+    --secondary-color: #16a085;
+    --accent-color: #1abc9c;
     --background-color: #f8f9fa;
     --card-bg: #ffffff;
     --text-color: #333;
@@ -160,7 +160,7 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.2);
 }
 
 input::placeholder, textarea::placeholder {
@@ -271,7 +271,8 @@ input[type="file"] {
 }
 
 .btn.secondary:hover {
-    background-color: var(--border-color);
+    background-color: rgba(46, 204, 113, 0.1);
+    color: var(--primary-color);
 }
 
 .primary {
@@ -387,7 +388,7 @@ input[type="file"] {
     font-weight: 500;
     margin-bottom: var(--spacing-md);
     display: inline-block;
-    background-color: rgba(67, 97, 238, 0.1);
+    background-color: rgba(46, 204, 113, 0.1);
     padding: 2px 8px;
     border-radius: 4px;
 }
@@ -533,11 +534,11 @@ input[type="file"] {
 }
 
 .delete-btn {
-    background-color: #ef476f;
+    background-color: #e74c3c;
 }
 
 .delete-btn:hover {
-    background-color: #d64161;
+    background-color: #c0392b;
 }
 
 .no-items {
@@ -548,7 +549,7 @@ input[type="file"] {
 }
 
 .success-message {
-    background-color: #4ade80;
+    background-color: var(--primary-color);
     color: #ffffff;
     padding: var(--spacing-md);
     border-radius: var(--border-radius);
@@ -655,7 +656,7 @@ input[type="file"] {
 }
 
 .dropdown-item:hover {
-    background-color: var(--light-gray);
+    background-color: rgba(46, 204, 113, 0.1);
 }
 
 .dropdown-toggle {
