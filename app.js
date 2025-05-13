@@ -19,8 +19,7 @@ let appSettings = {
         direction: 'desc'
     },
     imageCompression: {
-        quality: 0.7,
-        showSize: true
+        quality: 0.7
     }
 };
 
@@ -134,15 +133,10 @@ function applySettings() {
     // Set image compression settings
     const imageQualityInput = document.getElementById('image-quality');
     const qualityValueSpan = document.getElementById('quality-value');
-    const showImageSizeCheckbox = document.getElementById('show-image-size');
     
     if (imageQualityInput && qualityValueSpan) {
         imageQualityInput.value = appSettings.imageCompression.quality;
         qualityValueSpan.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
-    }
-    
-    if (showImageSizeCheckbox) {
-        showImageSizeCheckbox.checked = appSettings.imageCompression.showSize;
     }
     
     // Set bulk compression slider to default
@@ -284,7 +278,7 @@ function optimizeImageData(dataUrl, showPreview = false, quality = null) {
             const optimizedSize = Math.round(optimizedDataUrl.length * 0.75);
             
             // Show file size info if needed
-            if (showPreview && appSettings.imageCompression.showSize) {
+            if (showPreview) {
                 const container = showPreview === 'edit' ? 
                     document.getElementById('edit-photo-preview') : 
                     document.getElementById('photo-preview');
@@ -473,6 +467,9 @@ function setupEventListeners() {
                 // Show loading spinner
                 loadingSpinner.classList.add('active');
                 
+                // Add a overlay for better visibility while loading
+                document.getElementById('items-container').innerHTML = '';
+                
                 // Load items with slight delay to allow UI to update
                 setTimeout(() => {
                     loadItems();
@@ -603,57 +600,9 @@ function setupEventListeners() {
             
             // If a photo is in the preview, update the compression preview
             const previewImg = photoPreview.querySelector('img');
-            if (previewImg && appSettings.imageCompression.showSize) {
+            if (previewImg) {
                 optimizeImageData(previewImg.src, true);
             }
-        });
-    }
-    
-    // Show image size toggle
-    const showImageSizeCheckbox = document.getElementById('show-image-size');
-    if (showImageSizeCheckbox) {
-        showImageSizeCheckbox.addEventListener('change', () => {
-            // Update the settings
-            appSettings.imageCompression.showSize = showImageSizeCheckbox.checked;
-            
-            // Apply the change right away without waiting for save
-            saveSettings();
-            
-            // Update or remove file size display
-            const addSizeInfo = document.getElementById('add-size-info');
-            const editSizeInfo = document.getElementById('edit-size-info');
-            
-            if (!appSettings.imageCompression.showSize) {
-                // Hide size info if setting turned off
-                if (addSizeInfo) addSizeInfo.style.display = 'none';
-                if (editSizeInfo) editSizeInfo.style.display = 'none';
-            } else {
-                // Show size info if setting turned on
-                if (addSizeInfo) {
-                    addSizeInfo.style.display = 'block';
-                    
-                    // Re-generate size info if image is present in add form
-                    const previewImg = photoPreview.querySelector('img');
-                    if (previewImg) {
-                        optimizeImageData(previewImg.src, true);
-                    }
-                }
-                
-                if (editSizeInfo) {
-                    editSizeInfo.style.display = 'block';
-                    
-                    // Re-generate size info if image is present in edit form
-                    const editPreviewImg = document.getElementById('edit-photo-preview')?.querySelector('img');
-                    if (editPreviewImg) {
-                        optimizeImageData(editPreviewImg.src, 'edit');
-                    }
-                }
-            }
-            
-            // Show a confirmation
-            showMessage(appSettings.imageCompression.showSize ? 
-                'Size information will now be shown.' : 
-                'Size information will now be hidden.');
         });
     }
     
@@ -901,13 +850,11 @@ function handlePhotoInput(event) {
             photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
             
             // Update compression preview
-            if (appSettings.imageCompression.showSize) {
-                await optimizeImageData(e.target.result, true, quality);
-            }
+            await optimizeImageData(e.target.result, true, quality);
         });
         
         // Generate initial preview with default quality
-        if (appSettings.imageCompression.showSize && e.target.result.startsWith('data:image')) {
+        if (e.target.result.startsWith('data:image')) {
             await optimizeImageData(e.target.result, true, appSettings.imageCompression.quality);
         }
     };
@@ -942,6 +889,15 @@ function resetItemForm() {
     if (sizeInfo) sizeInfo.remove();
 }
 
+// Function to show a loading indicator with custom message
+function showLoadingIndicator(message = 'Loading...') {
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+    document.body.appendChild(loadingIndicator);
+    return loadingIndicator;
+}
+
 // Save item with optimized image handling
 async function saveItem(event) {
     event.preventDefault();
@@ -953,10 +909,7 @@ async function saveItem(event) {
     }
     
     // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Saving item...</span>';
-    document.body.appendChild(loadingIndicator);
+    const loadingIndicator = showLoadingIndicator('Saving item...');
     
     try {
         // Get and optimize photo data
@@ -1022,6 +975,12 @@ async function saveItem(event) {
 
 // Load items from cache
 function loadItems() {
+    // Clear existing content from the items container first
+    itemsContainer.innerHTML = '';
+    
+    // Ensure the loading spinner is visible while loading
+    loadingSpinner.classList.add('active');
+    
     if (cacheDirty) {
         refreshCacheAndUI();
         return;
@@ -1052,6 +1011,9 @@ function applyFiltersAndSort() {
     
     // Show loading spinner when filtering/sorting
     loadingSpinner.classList.add('active');
+    
+    // Clear the items container to avoid showing stale content
+    itemsContainer.innerHTML = '';
     
     // Use a small timeout to allow the UI to update
     setTimeout(() => {
@@ -1332,18 +1294,16 @@ function editItem(id) {
         photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
         
         // Show file size info if enabled
-        if (appSettings.imageCompression.showSize) {
-            optimizeImageData(item.photo, 'edit', appSettings.imageCompression.quality);
+        optimizeImageData(item.photo, 'edit', appSettings.imageCompression.quality);
+        
+        // Add event listener for quality changes
+        photoQualitySlider.addEventListener('input', () => {
+            const quality = parseFloat(photoQualitySlider.value);
+            photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
             
-            // Add event listener for quality changes
-            photoQualitySlider.addEventListener('input', () => {
-                const quality = parseFloat(photoQualitySlider.value);
-                photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
-                
-                // Update preview with new quality
-                optimizeImageData(item.photo, 'edit', quality);
-            });
-        }
+            // Update preview with new quality
+            optimizeImageData(item.photo, 'edit', quality);
+        });
     } else {
         const placeholderImg = document.createElement('img');
         placeholderImg.src = createPlaceholderImage(item.name);
@@ -1395,15 +1355,11 @@ function editItem(id) {
                 photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
                 
                 // Update compression preview
-                if (appSettings.imageCompression.showSize) {
-                    optimizeImageData(e.target.result, 'edit', quality);
-                }
+                optimizeImageData(e.target.result, 'edit', quality);
             });
             
             // Show file size info if enabled
-            if (appSettings.imageCompression.showSize) {
-                await optimizeImageData(e.target.result, 'edit', appSettings.imageCompression.quality);
-            }
+            optimizeImageData(e.target.result, 'edit', appSettings.imageCompression.quality);
         };
         
         reader.onerror = () => {
@@ -1466,10 +1422,7 @@ async function saveEditedItem() {
     if (!currentEditItem) return;
     
     // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Saving changes...</span>';
-    document.body.appendChild(loadingIndicator);
+    const loadingIndicator = showLoadingIndicator('Saving changes...');
     
     try {
         // Get values from edit form
@@ -1567,10 +1520,7 @@ function deleteItem(id) {
     }
     
     // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Deleting item...</span>';
-    document.body.appendChild(loadingIndicator);
+    const loadingIndicator = showLoadingIndicator('Deleting item...');
     
     // Open a transaction and delete directly
     const transaction = db.transaction([STORE_NAME], 'readwrite');
@@ -1698,10 +1648,7 @@ function importData(file) {
     if (!file) return;
     
     // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Importing data...</span>';
-    document.body.appendChild(loadingIndicator);
+    const loadingIndicator = showLoadingIndicator('Importing data...');
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1810,19 +1757,8 @@ async function bulkCompressImages(targetQuality) {
     // Close the settings modal
     settingsModal.style.display = 'none';
     
-    // If we're already in view-items tab, show the loading spinner
-    if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
-        loadingSpinner.classList.add('active');
-    } else {
-        // Otherwise create a separate loading indicator
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.className = 'loading-indicator';
-        loadingIndicator.innerHTML = '<div class="spinner"></div><span>Compressing all images...</span>';
-        document.body.appendChild(loadingIndicator);
-        
-        // Store it for reference
-        window.bulkCompressionIndicator = loadingIndicator;
-    }
+    // Show loading indicator with clear message
+    const loadingIndicator = showLoadingIndicator('Compressing all images...');
 
     try {
         // First get all items with photos
@@ -1840,14 +1776,8 @@ async function bulkCompressImages(targetQuality) {
         if (itemsWithPhotos.length === 0) {
             showMessage('No images found to compress.', true);
             
-            // Hide or remove loading indicators
-            if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
-                loadingSpinner.classList.remove('active');
-            } else if (window.bulkCompressionIndicator) {
-                window.bulkCompressionIndicator.remove();
-                delete window.bulkCompressionIndicator;
-            }
-            
+            // Remove loading indicator
+            loadingIndicator.remove();
             return;
         }
 
@@ -1859,6 +1789,10 @@ async function bulkCompressImages(targetQuality) {
         const MIN_COMPRESSION_BENEFIT = 0.15; // 15% reduction threshold
         
         for (const item of itemsWithPhotos) {
+            // Update loading message to show progress
+            const progressMessage = `Compressing image ${processed + 1} of ${itemsWithPhotos.length}...`;
+            loadingIndicator.querySelector('span').textContent = progressMessage;
+            
             // Optimize the image
             const result = await optimizeImageData(item.photo, false, targetQuality);
             
@@ -1897,17 +1831,9 @@ async function bulkCompressImages(targetQuality) {
     } catch (error) {
         console.error('Error during bulk compression:', error);
         showMessage('Error compressing images. Please try again.', true);
-        
-        // Hide or remove loading indicators in case of error
-        if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
-            loadingSpinner.classList.remove('active');
-        }
     } finally {
-        // Clean up any standalone loading indicator
-        if (window.bulkCompressionIndicator) {
-            window.bulkCompressionIndicator.remove();
-            delete window.bulkCompressionIndicator;
-        }
+        // Remove loading indicator
+        loadingIndicator.remove();
     }
 }
 
@@ -1919,10 +1845,7 @@ function deleteAllItems() {
     }
     
     // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Deleting all items...</span>';
-    document.body.appendChild(loadingIndicator);
+    const loadingIndicator = showLoadingIndicator('Deleting all items...');
     
     try {
         // Create a transaction
