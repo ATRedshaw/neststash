@@ -19,6 +19,13 @@
         <header>
             <h1>Neststash</h1>
             <p>Track items for your new home</p>
+            <button id="open-help" class="help-btn" title="Help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9 9a3 3 0 1 1 6 0c0 2-3 3-3 3v2"></path>
+                    <circle cx="12" cy="17" r="0.5"></circle>
+                </svg>
+            </button>
             <button id="open-settings" class="settings-btn" title="Settings">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -271,6 +278,65 @@
                 </div>
                 
                 <button id="save-settings" class="btn primary">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal">
+        <div class="modal-content help-content">
+            <span class="close">&times;</span>
+            <h2>How to Use Neststash</h2>
+            <div class="help-section">
+                <div class="help-row">
+                    <h3>Getting Started</h3>
+                    <p>Neststash helps you track items for your home. You can add photos, details, and organize items by category to keep track of your purchases or wishlist.</p>
+                </div>
+                
+                <div class="help-row">
+                    <h3>Adding Items</h3>
+                    <ul>
+                        <li><strong>Take a Photo:</strong> Capture or upload an image of your item</li>
+                        <li><strong>Item Details:</strong> Add name, category, shop, price, and notes</li>
+                        <li><strong>Image Compression:</strong> Adjust quality to save space</li>
+                    </ul>
+                </div>
+                
+                <div class="help-row">
+                    <h3>Managing Your Items</h3>
+                    <ul>
+                        <li><strong>Search & Filter:</strong> Find items by name, category, or shop</li>
+                        <li><strong>Sort:</strong> Organize items by name, category, shop, price, or date</li>
+                        <li><strong>View Details:</strong> Click any item to see full information</li>
+                        <li><strong>Edit & Delete:</strong> Update or remove items as needed</li>
+                    </ul>
+                </div>
+                
+                <div class="help-row">
+                    <h3>Settings & Data Management</h3>
+                    <ul>
+                        <li><strong>Currency:</strong> Change your preferred currency symbol</li>
+                        <li><strong>Default Sort:</strong> Choose how items are initially displayed</li>
+                        <li><strong>Image Quality:</strong> Set default compression level for new photos</li>
+                        <li><strong>Bulk Compression:</strong> Reduce size of all existing images</li>
+                        <li><strong>Export/Import:</strong> Backup your data or move to another device</li>
+                    </ul>
+                </div>
+                
+                <div class="help-row">
+                    <h3>Using Offline</h3>
+                    <p>Neststash works even without an internet connection! If you've installed the app to your home screen, you can access and add items anywhere.</p>
+                    <p><strong>Important:</strong> When using the shortcut (PWA) version without internet access, avoid using the "Refresh Application" option as you may lose offline access.</p>
+                </div>
+                
+                <div class="help-row">
+                    <h3>Tips</h3>
+                    <ul>
+                        <li>Create consistent categories to make filtering easier</li>
+                        <li>Add detailed notes to help with future decisions</li>
+                        <li>Export your data regularly as a backup</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>

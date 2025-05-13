@@ -5,7 +5,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'items';
 const SETTINGS_KEY = 'neststashSettings';
 const APP_VERSION_KEY = 'neststashVersion';
-const CURRENT_VERSION = 'neststash-v4'; // Must match the version in service-worker.js
+const CURRENT_VERSION = 'neststash-v4.1'; // Must match the version in service-worker.js
 
 // Cache for items and dropdown values
 let itemsCache = [];
@@ -66,6 +66,10 @@ const customCurrency = document.getElementById('custom-currency');
 const defaultSortSetting = document.getElementById('default-sort');
 const saveSettingsBtn = document.getElementById('save-settings');
 const currencySymbolEl = document.getElementById('currency-symbol');
+
+// Help elements
+const openHelpBtn = document.getElementById('open-help');
+const helpModal = document.getElementById('help-modal');
 
 // Current filters and sort state
 let currentFilters = {
@@ -683,6 +687,8 @@ function setupEventListeners() {
             cleanupEditForm();
         } else if (event.target === settingsModal) {
             settingsModal.style.display = 'none';
+        } else if (event.target === helpModal) {
+            helpModal.style.display = 'none';
         }
     });
     
@@ -800,7 +806,7 @@ function setupEventListeners() {
     if (refreshAppBtn) {
         refreshAppBtn.addEventListener('click', () => {
             // Show confirmation dialog
-            if (confirm('This will refresh the application to get the latest features. Your data will remain intact. Continue?')) {
+            if (confirm('This will refresh the application to get the latest features. Your data will remain intact. \n\nIMPORTANT: If you are using a shortcut (PWA) version of Neststash and do not currently have internet access, do NOT proceed, as you may lose offline access. Continue?')) {
                 // Save any unsaved settings first
                 saveSettings();
                 
@@ -889,6 +895,11 @@ function setupEventListeners() {
             e.preventDefault();
             cancelEdit();
         }
+    });
+
+    // Help button
+    openHelpBtn.addEventListener('click', () => {
+        helpModal.style.display = 'block';
     });
 }
 
@@ -1843,6 +1854,17 @@ function showMessage(message, isError = false) {
     messageEl.textContent = message;
     document.body.appendChild(messageEl);
     setTimeout(() => messageEl.remove(), 3000);
+}
+
+// Helper function to escape HTML for safe rendering
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // Debounce helper function to prevent excessive calls

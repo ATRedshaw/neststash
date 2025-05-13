@@ -83,9 +83,32 @@ header .settings-btn {
     transition: var(--transition);
 }
 
+header .help-btn {
+    position: absolute;
+    top: var(--spacing-md);
+    left: var(--spacing-md);
+    color: var(--white);
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: var(--spacing-xs);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
 header .settings-btn:hover {
     background-color: rgba(255, 255, 255, 0.3);
     transform: rotate(30deg);
+}
+
+header .help-btn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
 }
 
 .tabs {
@@ -1375,5 +1398,59 @@ input[type="file"] {
     
     .update-actions .btn:last-child {
         margin-bottom: 0;
+    }
+}
+
+/* Help modal styles */
+.help-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+.help-row {
+    margin-bottom: var(--spacing-md);
+}
+
+.help-row h3 {
+    font-size: 1.2rem;
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-xs);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.help-row p {
+    margin-bottom: var(--spacing-md);
+    line-height: 1.6;
+}
+
+.help-row ul {
+    list-style-position: inside;
+    padding-left: var(--spacing-sm);
+}
+
+.help-row li {
+    margin-bottom: var(--spacing-sm);
+    line-height: 1.5;
+}
+
+.help-content {
+    max-width: 800px;
+    max-height: 85vh;
+}
+
+@media (max-width: 480px) {
+    .help-row h3 {
+        font-size: 1.1rem;
+    }
+    
+    .help-row ul {
+        padding-left: 0;
+    }
+    
+    .help-content {
+        font-size: 0.95rem;
     }
 } 
