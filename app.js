@@ -374,21 +374,17 @@ function optimizeImageData(dataUrl, showPreview = false, quality = null) {
                     const originalKB = (originalSize / 1024).toFixed(1);
                     const optimizedKB = (optimizedSize / 1024).toFixed(1);
                     
-                    // Calculate savings percentage, ensure it's never negative
-                    let savingsPercent = Math.round((1 - (optimizedSize / originalSize)) * 100);
-                    savingsPercent = Math.max(0, savingsPercent); // Ensure it's never negative
-                    
-                    // Special handling for 100% quality
+                    // Calculate savings percentage for the progress bar
+                    let compressionRatio = optimizedSize / originalSize;
                     if (compressionQuality >= 0.99) {
-                        savingsPercent = 0; // At 100% quality, there are no savings
+                        compressionRatio = 1; // At 100% quality, display full bar
                     }
                     
                     sizeInfo.innerHTML = `
                         <span>Size: ${optimizedKB} KB</span>
                         <div class="file-size-bar">
-                            <div class="file-size-fill" style="width: ${100 - savingsPercent}%"></div>
+                            <div class="file-size-fill" style="width: ${compressionRatio * 100}%"></div>
                         </div>
-                        <span>Saved: ${savingsPercent}%</span>
                     `;
                     
                     // Make sure it's visible if display was set to none
