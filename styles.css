@@ -1248,4 +1248,17 @@ input:checked + .toggle-slider:before {
     color: var(--text-muted);
     margin-top: var(--spacing-sm);
     font-style: italic;
+}
+
+/* Update controls */
+.update-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    width: 100%;
+}
+
+.update-controls .btn {
+    margin-top: var(--spacing-xs);
+    align-self: flex-start;
 } 

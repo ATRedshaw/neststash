@@ -704,6 +704,27 @@ function setupEventListeners() {
         });
     }
     
+    // Refresh app button
+    const refreshAppBtn = document.getElementById('refresh-app');
+    if (refreshAppBtn) {
+        refreshAppBtn.addEventListener('click', () => {
+            // Show confirmation dialog
+            if (confirm('This will refresh the application to get the latest features. Your data will remain intact. Continue?')) {
+                // Save any unsaved settings first
+                saveSettings();
+                
+                // Show loading message
+                showMessage('Refreshing application...');
+                
+                // Wait a moment to show the message before refreshing
+                setTimeout(() => {
+                    // Force reload from server, not from cache
+                    window.location.reload(true);
+                }, 500);
+            }
+        });
+    }
+    
     // Also apply filters and sort initially
     applyFiltersAndSort();
 
