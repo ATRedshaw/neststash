@@ -36,6 +36,7 @@ const takePhotoBtn = document.getElementById('take-photo');
 const photoPreview = document.getElementById('photo-preview');
 const itemsContainer = document.getElementById('items-container');
 const searchInput = document.getElementById('search-input');
+const loadingSpinner = document.getElementById('loading-spinner');
 
 // Dropdown elements
 const categoryInput = document.getElementById('item-category');
@@ -213,6 +214,11 @@ function initDB() {
 function refreshCacheAndUI() {
     if (!db) return;
     
+    // Show loading spinner if in view-items tab
+    if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
+        loadingSpinner.classList.add('active');
+    }
+    
     const transaction = db.transaction([STORE_NAME], 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.getAll();
@@ -231,6 +237,8 @@ function refreshCacheAndUI() {
     
     request.onerror = (event) => {
         console.error('Error refreshing cache:', event.target.error);
+        // Hide loading spinner in case of error
+        loadingSpinner.classList.remove('active');
     };
 }
 
@@ -460,9 +468,15 @@ function setupEventListeners() {
             btn.classList.add('active');
             document.getElementById(tabId).classList.add('active');
             
-            // If switching to view-items tab, refresh items
+            // If switching to view-items tab, show loading spinner and load items
             if (tabId === 'view-items') {
-                loadItems();
+                // Show loading spinner
+                loadingSpinner.classList.add('active');
+                
+                // Load items with slight delay to allow UI to update
+                setTimeout(() => {
+                    loadItems();
+                }, 50);
             }
         });
     });
@@ -725,6 +739,66 @@ function setupEventListeners() {
         });
     }
     
+    // Delete all items button
+    const deleteAllItemsBtn = document.getElementById('delete-all-items');
+    if (deleteAllItemsBtn) {
+        deleteAllItemsBtn.addEventListener('click', () => {
+            // Close the settings modal first
+            settingsModal.style.display = 'none';
+            
+            // Create a custom confirmation modal
+            const confirmationModal = document.createElement('div');
+            confirmationModal.className = 'modal';
+            confirmationModal.style.display = 'block';
+            
+            confirmationModal.innerHTML = `
+                <div class="modal-content danger-confirmation">
+                    <span class="close">&times;</span>
+                    <h2>⚠️ Warning: Destructive Action</h2>
+                    <p>You are about to delete <strong>ALL</strong> items from your inventory. This action cannot be undone.</p>
+                    <p>Are you absolutely sure you want to continue?</p>
+                    <div class="confirmation-actions">
+                        <button id="confirm-delete-all" class="btn danger">Yes, Delete Everything</button>
+                        <button id="cancel-delete-all" class="btn secondary">Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(confirmationModal);
+            
+            // Handle confirmation modal actions
+            const closeBtn = confirmationModal.querySelector('.close');
+            const confirmBtn = document.getElementById('confirm-delete-all');
+            const cancelBtn = document.getElementById('cancel-delete-all');
+            
+            // Close button
+            closeBtn.addEventListener('click', () => {
+                confirmationModal.remove();
+            });
+            
+            // Cancel button
+            cancelBtn.addEventListener('click', () => {
+                confirmationModal.remove();
+            });
+            
+            // Confirm delete button
+            confirmBtn.addEventListener('click', () => {
+                // Close modal
+                confirmationModal.remove();
+                
+                // Call function to delete all items
+                deleteAllItems();
+            });
+            
+            // Also close on outside click
+            confirmationModal.addEventListener('click', (e) => {
+                if (e.target === confirmationModal) {
+                    confirmationModal.remove();
+                }
+            });
+        });
+    }
+    
     // Also apply filters and sort initially
     applyFiltersAndSort();
 
@@ -954,6 +1028,9 @@ function loadItems() {
     }
     
     if (itemsCache.length === 0) {
+        // Hide loading spinner
+        loadingSpinner.classList.remove('active');
+        
         itemsContainer.innerHTML = `
             <div class="no-items-center">
                 <p class="no-items">No items found. Add some items to get started!</p>
@@ -973,7 +1050,13 @@ function applyFiltersAndSort() {
         return;
     }
     
-    filterAndSortItems(itemsCache);
+    // Show loading spinner when filtering/sorting
+    loadingSpinner.classList.add('active');
+    
+    // Use a small timeout to allow the UI to update
+    setTimeout(() => {
+        filterAndSortItems(itemsCache);
+    }, 50);
 }
 
 // Filter and sort items then display them
@@ -1032,6 +1115,9 @@ function filterAndSortItems(items) {
     
     // Display filtered and sorted items
     displayItems(filteredItems);
+    
+    // Hide loading spinner after items are displayed
+    loadingSpinner.classList.remove('active');
     
     // Show no results message if needed
     if (filteredItems.length === 0) {
@@ -1721,11 +1807,22 @@ async function bulkCompressImages(targetQuality) {
         return;
     }
 
-    // Show loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Compressing all images...</span>';
-    document.body.appendChild(loadingIndicator);
+    // Close the settings modal
+    settingsModal.style.display = 'none';
+    
+    // If we're already in view-items tab, show the loading spinner
+    if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
+        loadingSpinner.classList.add('active');
+    } else {
+        // Otherwise create a separate loading indicator
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'loading-indicator';
+        loadingIndicator.innerHTML = '<div class="spinner"></div><span>Compressing all images...</span>';
+        document.body.appendChild(loadingIndicator);
+        
+        // Store it for reference
+        window.bulkCompressionIndicator = loadingIndicator;
+    }
 
     try {
         // First get all items with photos
@@ -1742,12 +1839,17 @@ async function bulkCompressImages(targetQuality) {
         
         if (itemsWithPhotos.length === 0) {
             showMessage('No images found to compress.', true);
-            loadingIndicator.remove();
+            
+            // Hide or remove loading indicators
+            if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
+                loadingSpinner.classList.remove('active');
+            } else if (window.bulkCompressionIndicator) {
+                window.bulkCompressionIndicator.remove();
+                delete window.bulkCompressionIndicator;
+            }
+            
             return;
         }
-
-        // Update loading indicator with progress
-        loadingIndicator.innerHTML = `<div class="spinner"></div><span>Compressing images (0/${itemsWithPhotos.length})...</span>`;
 
         // Process each item
         let processed = 0;
@@ -1773,7 +1875,7 @@ async function bulkCompressImages(targetQuality) {
                 item.photo = result.optimizedDataUrl;
                 compressed++;
                 
-                // Update in DB with a new transaction
+                // Save the updated item
                 await new Promise((resolve, reject) => {
                     const updateRequest = updateStore.put(item);
                     updateRequest.onsuccess = () => resolve();
@@ -1781,22 +1883,77 @@ async function bulkCompressImages(targetQuality) {
                 });
             }
             
-            // Update progress
             processed++;
-            loadingIndicator.innerHTML = `<div class="spinner"></div><span>Compressing images (${processed}/${itemsWithPhotos.length})...</span>`;
         }
-
-        // Complete
-        showMessage(`Compression complete! Compressed ${compressed} of ${itemsWithPhotos.length} images, saving at least 15% per image.`);
         
-        // Mark cache as dirty to reload
+        // Mark cache as dirty to trigger a refresh
         cacheDirty = true;
-        refreshCacheAndUI();
         
+        // Show a success message with stats
+        showMessage(`Compression complete: ${compressed} of ${processed} images compressed.`);
+        
+        // Refresh the UI with the updated images
+        refreshCacheAndUI();
     } catch (error) {
         console.error('Error during bulk compression:', error);
-        showMessage('Error during compression. Some images may not have been compressed.', true);
+        showMessage('Error compressing images. Please try again.', true);
+        
+        // Hide or remove loading indicators in case of error
+        if (document.querySelector('.tab-btn[data-tab="view-items"]').classList.contains('active')) {
+            loadingSpinner.classList.remove('active');
+        }
     } finally {
+        // Clean up any standalone loading indicator
+        if (window.bulkCompressionIndicator) {
+            window.bulkCompressionIndicator.remove();
+            delete window.bulkCompressionIndicator;
+        }
+    }
+}
+
+// Function to delete all items
+function deleteAllItems() {
+    if (!db) {
+        showMessage('Database not ready. Please try again.', true);
+        return;
+    }
+    
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Deleting all items...</span>';
+    document.body.appendChild(loadingIndicator);
+    
+    try {
+        // Create a transaction
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        
+        // Clear the object store
+        const clearRequest = store.clear();
+        
+        clearRequest.onsuccess = () => {
+            // Mark cache as dirty
+            cacheDirty = true;
+            
+            // Show success message
+            showMessage('All items have been deleted successfully');
+            
+            // Refresh cache and UI
+            refreshCacheAndUI();
+            
+            // Remove loading indicator
+            loadingIndicator.remove();
+        };
+        
+        clearRequest.onerror = (event) => {
+            console.error('Error deleting all items:', event.target.error);
+            showMessage('Error deleting items. Please try again.', true);
+            loadingIndicator.remove();
+        };
+    } catch (error) {
+        console.error('Error during deleteAllItems:', error);
+        showMessage('Error deleting items. Please try again.', true);
         loadingIndicator.remove();
     }
 }

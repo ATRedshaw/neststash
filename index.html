@@ -97,6 +97,11 @@
         </div>
         
         <div class="tab-content" id="view-items">
+            <div id="loading-spinner" class="loading-container">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+            </div>
+            
             <div class="filter-container">
                 <div class="search-section">
                     <div class="filter-section-header">
@@ -263,6 +268,15 @@
                         </label>
                     </div>
                 </div>
+                
+                <div class="settings-row danger-zone">
+                    <label>Danger Zone:</label>
+                    <div class="danger-description">
+                        <p>These actions are destructive and cannot be undone. Please proceed with caution.</p>
+                    </div>
+                    <button id="delete-all-items" class="btn danger full-width">Delete All Items</button>
+                </div>
+                
                 <button id="save-settings" class="btn primary">Save Settings</button>
             </div>
         </div>
