@@ -5,7 +5,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'items';
 const SETTINGS_KEY = 'neststashSettings';
 const APP_VERSION_KEY = 'neststashVersion';
-const CURRENT_VERSION = 'neststash-v2'; // Must match the version in service-worker.js
+const CURRENT_VERSION = 'neststash-v4'; // Must match the version in service-worker.js
 
 // Cache for items and dropdown values
 let itemsCache = [];
@@ -84,7 +84,9 @@ document.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
     // Check for app updates
-    checkForUpdates();
+    setTimeout(() => {
+        checkForUpdates();
+    }, 1000); // Delay check to ensure service worker is registered
     
     // Load saved settings
     loadSettings();
@@ -108,24 +110,59 @@ async function checkForUpdates() {
             const storedVersion = localStorage.getItem(APP_VERSION_KEY);
             
             // Check the current service worker version
-            const response = await fetch('/neststash/app-version');
+            const timestamp = new Date().getTime(); // Add timestamp to prevent caching
+            const response = await fetch(`/neststash/app-version?t=${timestamp}`, {
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch app version');
+            }
+            
             const currentVersion = await response.text();
             
-            // Store the current version
-            localStorage.setItem(APP_VERSION_KEY, currentVersion);
+            console.log('Version check:', { storedVersion, currentVersion });
+            
+            // First time users won't have a stored version
+            if (!storedVersion) {
+                localStorage.setItem(APP_VERSION_KEY, currentVersion);
+                return;
+            }
             
             // If versions don't match, show update notification
-            if (storedVersion && storedVersion !== currentVersion) {
+            if (storedVersion !== currentVersion) {
                 showUpdateNotification();
             }
         } catch (error) {
             console.error('Error checking for updates:', error);
+            // Try alternative method by checking for waiting service worker
+            checkForWaitingServiceWorker();
         }
+    }
+}
+
+// Alternative method to check for updates when fetch fails
+function checkForWaitingServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(registration => {
+            if (registration && registration.waiting) {
+                console.log('Update detected through waiting service worker');
+                showUpdateNotification();
+            }
+        });
     }
 }
 
 // Show update notification
 function showUpdateNotification() {
+    // First check if there's already a notification shown
+    if (document.querySelector('.update-notification')) {
+        return;
+    }
+    
     const notification = document.createElement('div');
     notification.className = 'update-notification';
     notification.innerHTML = `
@@ -154,13 +191,33 @@ function showUpdateNotification() {
 // Update the application
 function updateApplication() {
     if ('serviceWorker' in navigator) {
+        showLoadingIndicator('Updating application...');
+        
         navigator.serviceWorker.getRegistration().then(registration => {
             if (registration && registration.waiting) {
                 // Send message to service worker to skip waiting
                 registration.waiting.postMessage({ action: 'skipWaiting' });
             }
             
-            // Force reload from server
+            // Force reload from server after a short delay to allow service worker to activate
+            setTimeout(() => {
+                caches.keys().then(cacheNames => {
+                    return Promise.all(
+                        cacheNames.map(cacheName => {
+                            return caches.delete(cacheName);
+                        })
+                    );
+                }).then(() => {
+                    // Save current version to prevent showing update notification right after update
+                    localStorage.setItem(APP_VERSION_KEY, CURRENT_VERSION);
+                    
+                    // Reload the page
+                    window.location.reload(true);
+                });
+            }, 1000);
+        }).catch(error => {
+            console.error('Error updating application:', error);
+            // Fallback for browsers without service worker support
             window.location.reload(true);
         });
     } else {

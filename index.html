@@ -285,36 +285,58 @@
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 if (!refreshing) {
                     refreshing = true;
+                    console.log('Service worker controller changed, reloading...');
                     window.location.reload();
                 }
             });
             
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/neststash/service-worker.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful');
-                        
-                        // Check if there's a waiting service worker
-                        if (registration.waiting) {
-                            // If there's a new version waiting, update stored version
-                            localStorage.setItem('neststashVersion', 'new-version-available');
-                        }
-                        
-                        // Handle updates when service worker installation is complete
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // New version installed but waiting to activate
-                                    localStorage.setItem('neststashVersion', 'new-version-available');
-                                }
-                            });
-                        });
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
+                // Attempt to unregister any existing service worker first
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (registration) {
+                        console.log('Existing service worker found, checking for updates');
+                        registration.update();
+                    }
+                    
+                    // Register service worker with network-first approach
+                    return navigator.serviceWorker.register('/neststash/service-worker.js', {
+                        updateViaCache: 'none' // Don't use cached version of service worker
                     });
+                })
+                .then(registration => {
+                    console.log('ServiceWorker registration successful');
+                    
+                    // Check if there's a waiting service worker
+                    if (registration.waiting) {
+                        console.log('New service worker waiting');
+                        // Notify app about the pending update
+                        localStorage.setItem('neststashVersion', 'new-version-available');
+                    }
+                    
+                    // Handle updates when service worker installation is complete
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('New service worker installing');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            console.log('Service worker state change:', newWorker.state);
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New version installed but waiting to activate
+                                console.log('New version installed and waiting');
+                                localStorage.setItem('neststashVersion', 'new-version-available');
+                                
+                                // Show update notification right away if app is already running
+                                if (typeof checkForUpdates === 'function') {
+                                    console.log('Triggering update notification');
+                                    checkForUpdates();
+                                }
+                            }
+                        });
+                    });
+                })
+                .catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
             });
         }
     </script>

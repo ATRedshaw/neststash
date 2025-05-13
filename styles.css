@@ -1320,12 +1320,13 @@ input[type="file"] {
     transform: translateX(-50%);
     background-color: var(--white);
     border-radius: var(--border-radius-lg);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     width: 90%;
     max-width: 450px;
     z-index: 1000;
     animation: slideInUp 0.3s ease forwards;
     border-top: 4px solid var(--primary-color);
+    overflow: hidden;
 }
 
 .update-content {
@@ -1333,7 +1334,7 @@ input[type="file"] {
 }
 
 .update-content p {
-    font-weight: 500;
+    font-weight: 600;
     font-size: 1.1rem;
     margin-bottom: var(--spacing-md);
     color: var(--text-color);
@@ -1356,12 +1357,23 @@ input[type="file"] {
     }
 }
 
+/* Fix for mobile devices and iOS */
 @media (max-width: 480px) {
-    .confirmation-actions {
+    .update-notification {
+        bottom: 10px;
+        width: 94%;
+        max-width: none;
+    }
+    
+    .update-actions {
         flex-direction: column;
     }
     
-    .confirmation-actions .btn {
-        width: 100%;
+    .update-actions .btn {
+        margin-bottom: var(--spacing-xs);
+    }
+    
+    .update-actions .btn:last-child {
+        margin-bottom: 0;
     }
 } 

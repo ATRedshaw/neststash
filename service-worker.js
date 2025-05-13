@@ -1,5 +1,5 @@
 // Application version - change this when updating the app
-const APP_VERSION = 'neststash-v3'; // Increment this with each significant update
+const APP_VERSION = 'neststash-v4'; // Increment this with each significant update
 const CACHE_NAME = `${APP_VERSION}-cache`;
 const BASE_PATH = '/neststash';
 const ASSETS_TO_CACHE = [
@@ -54,9 +54,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
   // Handle app update check
-  if (url.pathname.endsWith('/app-version')) {
+  if (url.pathname.endsWith('/app-version') || url.pathname === `${BASE_PATH}/app-version`) {
     return event.respondWith(new Response(APP_VERSION, {
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-cache, no-store, must-revalidate' }
     }));
   }
   
