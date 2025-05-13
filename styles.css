@@ -1221,4 +1221,31 @@ input:checked + .toggle-slider:before {
 #item-quality-value, #edit-quality-value {
     font-weight: 600;
     color: var(--primary-color);
+}
+
+/* Bulk compression styles */
+.bulk-compression {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    width: 100%;
+}
+
+.bulk-compression .btn {
+    margin-top: var(--spacing-sm);
+    align-self: flex-start;
+}
+
+.bulk-compression #bulk-compression-value {
+    min-width: 42px;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* Compression note */
+.compression-note {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: var(--spacing-sm);
+    font-style: italic;
 } 

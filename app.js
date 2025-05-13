@@ -19,7 +19,7 @@ let appSettings = {
         direction: 'desc'
     },
     imageCompression: {
-        quality: 0.5,
+        quality: 0.7,
         showSize: true
     }
 };
@@ -142,6 +142,14 @@ function applySettings() {
     
     if (showImageSizeCheckbox) {
         showImageSizeCheckbox.checked = appSettings.imageCompression.showSize;
+    }
+    
+    // Set bulk compression slider to default
+    const bulkCompressionSlider = document.getElementById('bulk-compression-level');
+    const bulkCompressionValue = document.getElementById('bulk-compression-value');
+    if (bulkCompressionSlider && bulkCompressionValue) {
+        bulkCompressionSlider.value = appSettings.imageCompression.quality;
+        bulkCompressionValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
     }
     
     // Also update quality sliders for any existing photo inputs
@@ -273,29 +281,42 @@ function optimizeImageData(dataUrl, showPreview = false, quality = null) {
                     document.getElementById('edit-photo-preview') : 
                     document.getElementById('photo-preview');
                 
-                // Look for existing size info element for this container
-                let sizeInfoId = showPreview === 'edit' ? 'edit-size-info' : 'add-size-info';
-                let sizeInfo = document.getElementById(sizeInfoId);
-                
-                // Create if it doesn't exist
-                if (!sizeInfo) {
-                    sizeInfo = document.createElement('div');
-                    sizeInfo.className = 'file-size-info';
-                    sizeInfo.id = sizeInfoId;
-                    container.parentNode.insertBefore(sizeInfo, container.nextSibling);
+                if (container) {
+                    // Look for existing size info element for this container
+                    let sizeInfoId = showPreview === 'edit' ? 'edit-size-info' : 'add-size-info';
+                    let sizeInfo = document.getElementById(sizeInfoId);
+                    
+                    // Create if it doesn't exist
+                    if (!sizeInfo) {
+                        sizeInfo = document.createElement('div');
+                        sizeInfo.className = 'file-size-info';
+                        sizeInfo.id = sizeInfoId;
+                        container.parentNode.insertBefore(sizeInfo, container.nextSibling);
+                    }
+                    
+                    const originalKB = (originalSize / 1024).toFixed(1);
+                    const optimizedKB = (optimizedSize / 1024).toFixed(1);
+                    
+                    // Calculate savings percentage, ensure it's never negative
+                    let savingsPercent = Math.round((1 - (optimizedSize / originalSize)) * 100);
+                    savingsPercent = Math.max(0, savingsPercent); // Ensure it's never negative
+                    
+                    // Special handling for 100% quality
+                    if (compressionQuality >= 0.99) {
+                        savingsPercent = 0; // At 100% quality, there are no savings
+                    }
+                    
+                    sizeInfo.innerHTML = `
+                        <span>Size: ${optimizedKB} KB</span>
+                        <div class="file-size-bar">
+                            <div class="file-size-fill" style="width: ${100 - savingsPercent}%"></div>
+                        </div>
+                        <span>Saved: ${savingsPercent}%</span>
+                    `;
+                    
+                    // Make sure it's visible if display was set to none
+                    sizeInfo.style.display = 'block';
                 }
-                
-                const originalKB = (originalSize / 1024).toFixed(1);
-                const optimizedKB = (optimizedSize / 1024).toFixed(1);
-                const savingsPercent = Math.round((1 - (optimizedSize / originalSize)) * 100);
-                
-                sizeInfo.innerHTML = `
-                    <span>Size: ${optimizedKB} KB</span>
-                    <div class="file-size-bar">
-                        <div class="file-size-fill" style="width: ${100 - savingsPercent}%"></div>
-                    </div>
-                    <span>Saved: ${savingsPercent}%</span>
-                `;
             }
             
             resolve({ 
@@ -578,15 +599,47 @@ function setupEventListeners() {
     const showImageSizeCheckbox = document.getElementById('show-image-size');
     if (showImageSizeCheckbox) {
         showImageSizeCheckbox.addEventListener('change', () => {
+            // Update the settings
             appSettings.imageCompression.showSize = showImageSizeCheckbox.checked;
             
+            // Apply the change right away without waiting for save
+            saveSettings();
+            
             // Update or remove file size display
-            const sizeInfo = document.querySelector('.file-size-info');
-            if (!showImageSizeCheckbox.checked && sizeInfo) {
-                sizeInfo.remove();
-            } else if (showImageSizeCheckbox.checked && photoPreview.querySelector('img')) {
-                optimizeImageData(photoPreview.querySelector('img').src, true);
+            const addSizeInfo = document.getElementById('add-size-info');
+            const editSizeInfo = document.getElementById('edit-size-info');
+            
+            if (!appSettings.imageCompression.showSize) {
+                // Hide size info if setting turned off
+                if (addSizeInfo) addSizeInfo.style.display = 'none';
+                if (editSizeInfo) editSizeInfo.style.display = 'none';
+            } else {
+                // Show size info if setting turned on
+                if (addSizeInfo) {
+                    addSizeInfo.style.display = 'block';
+                    
+                    // Re-generate size info if image is present in add form
+                    const previewImg = photoPreview.querySelector('img');
+                    if (previewImg) {
+                        optimizeImageData(previewImg.src, true);
+                    }
+                }
+                
+                if (editSizeInfo) {
+                    editSizeInfo.style.display = 'block';
+                    
+                    // Re-generate size info if image is present in edit form
+                    const editPreviewImg = document.getElementById('edit-photo-preview')?.querySelector('img');
+                    if (editPreviewImg) {
+                        optimizeImageData(editPreviewImg.src, 'edit');
+                    }
+                }
             }
+            
+            // Show a confirmation
+            showMessage(appSettings.imageCompression.showSize ? 
+                'Size information will now be shown.' : 
+                'Size information will now be hidden.');
         });
     }
     
@@ -624,6 +677,32 @@ function setupEventListeners() {
             importData(file);
         }
     });
+    
+    // Bulk compression slider
+    const bulkCompressionSlider = document.getElementById('bulk-compression-level');
+    const bulkCompressionValue = document.getElementById('bulk-compression-value');
+    
+    if (bulkCompressionSlider && bulkCompressionValue) {
+        bulkCompressionSlider.addEventListener('input', () => {
+            const quality = parseFloat(bulkCompressionSlider.value);
+            bulkCompressionValue.textContent = `${Math.round(quality * 100)}%`;
+        });
+    }
+    
+    // Bulk compression button
+    const runBulkCompressionBtn = document.getElementById('run-bulk-compression');
+    if (runBulkCompressionBtn) {
+        runBulkCompressionBtn.addEventListener('click', () => {
+            // Get the selected quality
+            const bulkQuality = parseFloat(bulkCompressionSlider.value);
+            
+            // Run bulk compression
+            bulkCompressImages(bulkQuality);
+            
+            // Close settings modal
+            settingsModal.style.display = 'none';
+        });
+    }
     
     // Also apply filters and sort initially
     applyFiltersAndSort();
@@ -1607,4 +1686,98 @@ searchInput.addEventListener('input', () => {
 });
 
 // Apply similar debouncing to other filter inputs
+// ... existing code ...
+
+// Bulk compression function to compress all images
+async function bulkCompressImages(targetQuality) {
+    if (!db) {
+        showMessage('Database not ready. Please try again.', true);
+        return;
+    }
+
+    // Confirm with user
+    if (!confirm(`This will compress ALL images to ${Math.round(targetQuality * 100)}% quality. This process cannot be undone and may reduce image quality. Continue?`)) {
+        return;
+    }
+
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Compressing all images...</span>';
+    document.body.appendChild(loadingIndicator);
+
+    try {
+        // First get all items with photos
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const allItems = await new Promise((resolve, reject) => {
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (event) => reject(event.target.error);
+        });
+
+        // Filter items with photos
+        const itemsWithPhotos = allItems.filter(item => item.photo && item.photo.startsWith('data:image'));
+        
+        if (itemsWithPhotos.length === 0) {
+            showMessage('No images found to compress.', true);
+            loadingIndicator.remove();
+            return;
+        }
+
+        // Update loading indicator with progress
+        loadingIndicator.innerHTML = `<div class="spinner"></div><span>Compressing images (0/${itemsWithPhotos.length})...</span>`;
+
+        // Process each item
+        let processed = 0;
+        let compressed = 0;
+        
+        // Set minimum compression benefit threshold - only compress if we save at least 15%
+        const MIN_COMPRESSION_BENEFIT = 0.15; // 15% reduction threshold
+        
+        for (const item of itemsWithPhotos) {
+            // Optimize the image
+            const result = await optimizeImageData(item.photo, false, targetQuality);
+            
+            // Calculate the percentage of size reduction
+            const reductionPercentage = 1 - (result.optimizedSize / result.originalSize);
+            
+            // Only update if it reduced the size by at least the minimum threshold
+            if (reductionPercentage >= MIN_COMPRESSION_BENEFIT) {
+                // Create a new transaction for each update to avoid transaction timeout issues
+                const updateTransaction = db.transaction([STORE_NAME], 'readwrite');
+                const updateStore = updateTransaction.objectStore(STORE_NAME);
+                
+                // Update the item with the compressed image
+                item.photo = result.optimizedDataUrl;
+                compressed++;
+                
+                // Update in DB with a new transaction
+                await new Promise((resolve, reject) => {
+                    const updateRequest = updateStore.put(item);
+                    updateRequest.onsuccess = () => resolve();
+                    updateRequest.onerror = (event) => reject(event.target.error);
+                });
+            }
+            
+            // Update progress
+            processed++;
+            loadingIndicator.innerHTML = `<div class="spinner"></div><span>Compressing images (${processed}/${itemsWithPhotos.length})...</span>`;
+        }
+
+        // Complete
+        showMessage(`Compression complete! Compressed ${compressed} of ${itemsWithPhotos.length} images, saving at least 15% per image.`);
+        
+        // Mark cache as dirty to reload
+        cacheDirty = true;
+        refreshCacheAndUI();
+        
+    } catch (error) {
+        console.error('Error during bulk compression:', error);
+        showMessage('Error during compression. Some images may not have been compressed.', true);
+    } finally {
+        loadingIndicator.remove();
+    }
+}
+
 // ... existing code ... 

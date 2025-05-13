@@ -220,7 +220,7 @@
                     </select>
                 </div>
                 <div class="settings-row">
-                    <label for="image-quality">Image Compression:</label>
+                    <label for="image-quality">Default Image Compression:</label>
                     <div class="range-with-value">
                         <input type="range" id="image-quality" min="0.1" max="1.0" step="0.1" value="0.7">
                         <span id="quality-value">70%</span>
@@ -232,6 +232,18 @@
                     <div class="toggle-switch">
                         <input type="checkbox" id="show-image-size" checked>
                         <span class="toggle-slider"></span>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Bulk Compression:</label>
+                    <div class="bulk-compression">
+                        <div class="range-with-value">
+                            <input type="range" id="bulk-compression-level" min="0.1" max="0.9" step="0.1" value="0.7">
+                            <span id="bulk-compression-value">70%</span>
+                        </div>
+                        <p class="setting-description">Compress all existing images to this quality level</p>
+                        <button id="run-bulk-compression" class="btn secondary">Compress All Images</button>
+                        <p class="compression-note">Note: Only images that can be reduced by at least 15% will be compressed. This ensures image quality isn't degraded unless there's a meaningful file size benefit.</p>
                     </div>
                 </div>
                 <div class="settings-row data-management">
