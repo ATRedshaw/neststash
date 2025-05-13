@@ -1,5 +1,5 @@
 // Application version - change this when updating the app
-const APP_VERSION = 'neststash-v2'; // Increment this with each significant update
+const APP_VERSION = 'neststash-v3'; // Increment this with each significant update
 const CACHE_NAME = `${APP_VERSION}-cache`;
 const BASE_PATH = '/neststash';
 const ASSETS_TO_CACHE = [
