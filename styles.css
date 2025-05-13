@@ -910,54 +910,158 @@ input[type="file"] {
     margin-top: var(--spacing-md);
     box-shadow: var(--shadow);
     animation: fadeIn 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
 }
 
 .settings-row {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: var(--spacing-sm);
     margin-bottom: var(--spacing-md);
 }
 
 .settings-row label {
+    font-weight: 500;
     margin-bottom: 0;
-    margin-right: var(--spacing-md);
-    min-width: 100px;
+}
+
+.setting-description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: -2px;
 }
 
 .currency-select {
     width: auto;
     min-width: 80px;
+    max-width: 200px;
 }
 
-@media screen and (min-width: 768px) {
-    .filter-container {
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-    
-    .search-section {
-        flex: 1;
-        min-width: 300px;
-    }
-    
-    .sort-section {
-        flex: 1;
-        min-width: 300px;
-        padding-top: 0;
-        padding-left: var(--spacing-lg);
-        border-left: 1px solid var(--border-color);
-    }
-    
-    .sort-options {
-        justify-content: flex-start;
-    }
-    
-    .filter-actions {
-        width: 100%;
-        border-top: 1px solid var(--border-color);
-        padding-top: var(--spacing-md);
-        margin-top: var(--spacing-md);
-    }
+/* Range input with value display */
+.range-with-value {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.range-with-value input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    outline: none;
+}
+
+.range-with-value input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.range-with-value input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--primary-hover);
+    transform: scale(1.1);
+}
+
+.range-with-value input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.range-with-value input[type="range"]::-moz-range-thumb:hover {
+    background: var(--primary-hover);
+    transform: scale(1.1);
+}
+
+#quality-value {
+    min-width: 42px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Toggle switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.toggle-switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: var(--transition);
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: var(--transition);
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* File size display */
+.file-size-info {
+    margin-top: var(--spacing-sm);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.file-size-bar {
+    height: 4px;
+    background-color: var(--light-gray);
+    border-radius: 2px;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.file-size-fill {
+    position: absolute;
+    height: 100%;
+    background-color: var(--primary-color);
+    width: 0%;
+    transition: width 0.3s ease;
 }
 
 /* Add this near other item-related styles */
@@ -1090,4 +1194,31 @@ input[type="file"] {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Photo compression controls */
+.compression-controls {
+    width: 100%;
+    max-width: 300px;
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background-color: var(--light-gray);
+    border-radius: var(--border-radius);
+}
+
+.compression-controls label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.9rem;
+}
+
+.compression-controls .range-with-value {
+    margin-bottom: 0;
+}
+
+#item-quality-value, #edit-quality-value {
+    font-weight: 600;
+    color: var(--primary-color);
 } 

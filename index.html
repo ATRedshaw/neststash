@@ -43,6 +43,12 @@
                             Take Photo
                         </button>
                         <div id="photo-preview"></div>
+                        <div id="photo-compression-controls" class="compression-controls" style="display: none;">
+                            <label for="item-photo-quality">Compression: <span id="item-quality-value">70%</span></label>
+                            <div class="range-with-value">
+                                <input type="range" id="item-photo-quality" min="0.1" max="1.0" step="0.1" value="0.7">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -212,6 +218,21 @@
                         <option value="price-asc">Price (low to high)</option>
                         <option value="price-desc">Price (high to low)</option>
                     </select>
+                </div>
+                <div class="settings-row">
+                    <label for="image-quality">Image Compression:</label>
+                    <div class="range-with-value">
+                        <input type="range" id="image-quality" min="0.1" max="1.0" step="0.1" value="0.7">
+                        <span id="quality-value">70%</span>
+                    </div>
+                    <p class="setting-description">Lower quality = smaller file size</p>
+                </div>
+                <div class="settings-row">
+                    <label for="show-image-size">Show Image Size:</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="show-image-size" checked>
+                        <span class="toggle-slider"></span>
+                    </div>
                 </div>
                 <div class="settings-row data-management">
                     <label>Data Management:</label>

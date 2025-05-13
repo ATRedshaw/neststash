@@ -17,6 +17,10 @@ let appSettings = {
     defaultSort: {
         field: 'date',
         direction: 'desc'
+    },
+    imageCompression: {
+        quality: 0.5,
+        showSize: true
     }
 };
 
@@ -125,6 +129,35 @@ function applySettings() {
     
     // Set default sort dropdown
     defaultSortSetting.value = `${appSettings.defaultSort.field}-${appSettings.defaultSort.direction}`;
+    
+    // Set image compression settings
+    const imageQualityInput = document.getElementById('image-quality');
+    const qualityValueSpan = document.getElementById('quality-value');
+    const showImageSizeCheckbox = document.getElementById('show-image-size');
+    
+    if (imageQualityInput && qualityValueSpan) {
+        imageQualityInput.value = appSettings.imageCompression.quality;
+        qualityValueSpan.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+    }
+    
+    if (showImageSizeCheckbox) {
+        showImageSizeCheckbox.checked = appSettings.imageCompression.showSize;
+    }
+    
+    // Also update quality sliders for any existing photo inputs
+    const itemPhotoQuality = document.getElementById('item-photo-quality');
+    const itemQualityValue = document.getElementById('item-quality-value');
+    if (itemPhotoQuality && itemQualityValue) {
+        itemPhotoQuality.value = appSettings.imageCompression.quality;
+        itemQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+    }
+    
+    const editPhotoQuality = document.getElementById('edit-photo-quality');
+    const editQualityValue = document.getElementById('edit-quality-value');
+    if (editPhotoQuality && editQualityValue) {
+        editPhotoQuality.value = appSettings.imageCompression.quality;
+        editQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+    }
 }
 
 // Save settings to localStorage
@@ -194,12 +227,18 @@ function refreshCacheAndUI() {
 }
 
 // Optimize image data before storing
-function optimizeImageData(dataUrl) {
+function optimizeImageData(dataUrl, showPreview = false, quality = null) {
     return new Promise((resolve) => {
         if (!dataUrl || !dataUrl.startsWith('data:image')) {
-            resolve(dataUrl);
+            resolve({ optimizedDataUrl: dataUrl, originalSize: 0, optimizedSize: 0 });
             return;
         }
+        
+        // Use provided quality or default from settings
+        const compressionQuality = quality !== null ? quality : appSettings.imageCompression.quality;
+        
+        // Calculate original size (approximate)
+        const originalSize = Math.round(dataUrl.length * 0.75);
         
         const img = new Image();
         img.onload = function() {
@@ -224,14 +263,57 @@ function optimizeImageData(dataUrl) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Use lower quality JPEG for better compression
-            const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            resolve(optimizedDataUrl);
+            // Use provided quality or default from settings
+            const optimizedDataUrl = canvas.toDataURL('image/jpeg', compressionQuality);
+            const optimizedSize = Math.round(optimizedDataUrl.length * 0.75);
+            
+            // Show file size info if needed
+            if (showPreview && appSettings.imageCompression.showSize) {
+                const container = showPreview === 'edit' ? 
+                    document.getElementById('edit-photo-preview') : 
+                    document.getElementById('photo-preview');
+                
+                // Look for existing size info element for this container
+                let sizeInfoId = showPreview === 'edit' ? 'edit-size-info' : 'add-size-info';
+                let sizeInfo = document.getElementById(sizeInfoId);
+                
+                // Create if it doesn't exist
+                if (!sizeInfo) {
+                    sizeInfo = document.createElement('div');
+                    sizeInfo.className = 'file-size-info';
+                    sizeInfo.id = sizeInfoId;
+                    container.parentNode.insertBefore(sizeInfo, container.nextSibling);
+                }
+                
+                const originalKB = (originalSize / 1024).toFixed(1);
+                const optimizedKB = (optimizedSize / 1024).toFixed(1);
+                const savingsPercent = Math.round((1 - (optimizedSize / originalSize)) * 100);
+                
+                sizeInfo.innerHTML = `
+                    <span>Size: ${optimizedKB} KB</span>
+                    <div class="file-size-bar">
+                        <div class="file-size-fill" style="width: ${100 - savingsPercent}%"></div>
+                    </div>
+                    <span>Saved: ${savingsPercent}%</span>
+                `;
+            }
+            
+            resolve({ 
+                optimizedDataUrl, 
+                originalSize, 
+                optimizedSize,
+                compressionQuality
+            });
         };
         
         img.onerror = function() {
             // If there's an error, just return the original
-            resolve(dataUrl);
+            resolve({ 
+                optimizedDataUrl: dataUrl, 
+                originalSize: originalSize, 
+                optimizedSize: originalSize,
+                compressionQuality 
+            });
         };
         
         img.src = dataUrl;
@@ -342,6 +424,12 @@ function setupEventListeners() {
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.dataset.tab;
+            const currentActiveTab = document.querySelector('.tab-btn.active').dataset.tab;
+            
+            // Reset form if switching away from add-item tab
+            if (currentActiveTab === 'add-item' && tabId !== 'add-item') {
+                resetItemForm();
+            }
             
             // Deactivate all tabs
             tabBtns.forEach(b => b.classList.remove('active'));
@@ -390,56 +478,49 @@ function setupEventListeners() {
         debouncedApplyFilters();
     });
     
-    // Clear filters
-    clearFiltersBtn.addEventListener('click', clearFilters);
-    
-    // Sort options
+    // Sort buttons
     sortButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const field = btn.dataset.sort;
-            let direction;
             
-            // Toggle direction or set if different field
+            // If already sorting by this field, toggle direction
             if (currentSort.field === field) {
-                direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
-                direction = 'asc'; // Default to ascending for new field
+                // Otherwise, sort by this field in ascending order
+                currentSort.field = field;
+                currentSort.direction = 'asc';
             }
             
-            // Update sort state
-            currentSort.field = field;
-            currentSort.direction = direction;
-            
-            // Update buttons UI
+            // Update UI
             updateSortButtonsUI();
             
-            // Apply filters and sort
+            // Apply sort
             applyFiltersAndSort();
         });
     });
     
-    // Update sort buttons UI initially
-    updateSortButtonsUI();
+    // Clear filters button
+    clearFiltersBtn.addEventListener('click', clearFilters);
     
     // Modal close buttons
     closeModalBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Find the parent modal
             const modal = btn.closest('.modal');
             modal.style.display = 'none';
             
             // Reset currentEditItem if closing the item modal
             if (modal === itemModal) {
-                currentEditItem = null;
+                cleanupEditForm();
             }
         });
     });
     
-    // Close modals when clicking outside
+    // Close modal when clicking outside
     window.addEventListener('click', (event) => {
         if (event.target === itemModal) {
             itemModal.style.display = 'none';
-            currentEditItem = null;
+            cleanupEditForm();
         } else if (event.target === settingsModal) {
             settingsModal.style.display = 'none';
         }
@@ -452,72 +533,101 @@ function setupEventListeners() {
         }
     });
     
-    // Open settings modal
+    // Settings button
     openSettingsBtn.addEventListener('click', () => {
         settingsModal.style.display = 'block';
     });
     
-    // Settings: Handle custom currency option
+    // Currency setting
     currencySetting.addEventListener('change', () => {
         if (currencySetting.value === 'custom') {
             customCurrency.style.display = 'inline-block';
             customCurrency.focus();
         } else {
             customCurrency.style.display = 'none';
+            appSettings.currency = currencySetting.value;
         }
     });
     
-    // Save settings
-    saveSettingsBtn.addEventListener('click', () => {
-        // Get currency value
-        let currencyValue = currencySetting.value;
-        if (currencyValue === 'custom') {
-            currencyValue = customCurrency.value || '£'; // Default to £ if empty
+    // Custom currency input
+    customCurrency.addEventListener('input', () => {
+        if (customCurrency.value) {
+            appSettings.currency = customCurrency.value;
         }
-        
-        // Get default sort values
-        const sortValue = defaultSortSetting.value.split('-');
-        
-        // Update settings
-        appSettings.currency = currencyValue;
-        appSettings.defaultSort = {
-            field: sortValue[0],
-            direction: sortValue[1]
-        };
-        
-        // Save settings to localStorage
+    });
+    
+    // Image quality slider
+    const imageQualityInput = document.getElementById('image-quality');
+    const qualityValueSpan = document.getElementById('quality-value');
+    
+    if (imageQualityInput && qualityValueSpan) {
+        imageQualityInput.addEventListener('input', () => {
+            const quality = parseFloat(imageQualityInput.value);
+            appSettings.imageCompression.quality = quality;
+            qualityValueSpan.textContent = `${Math.round(quality * 100)}%`;
+            
+            // If a photo is in the preview, update the compression preview
+            const previewImg = photoPreview.querySelector('img');
+            if (previewImg && appSettings.imageCompression.showSize) {
+                optimizeImageData(previewImg.src, true);
+            }
+        });
+    }
+    
+    // Show image size toggle
+    const showImageSizeCheckbox = document.getElementById('show-image-size');
+    if (showImageSizeCheckbox) {
+        showImageSizeCheckbox.addEventListener('change', () => {
+            appSettings.imageCompression.showSize = showImageSizeCheckbox.checked;
+            
+            // Update or remove file size display
+            const sizeInfo = document.querySelector('.file-size-info');
+            if (!showImageSizeCheckbox.checked && sizeInfo) {
+                sizeInfo.remove();
+            } else if (showImageSizeCheckbox.checked && photoPreview.querySelector('img')) {
+                optimizeImageData(photoPreview.querySelector('img').src, true);
+            }
+        });
+    }
+    
+    // Default sort setting
+    defaultSortSetting.addEventListener('change', () => {
+        const [field, direction] = defaultSortSetting.value.split('-');
+        appSettings.defaultSort = { field, direction };
+    });
+    
+    // Save settings button
+    saveSettingsBtn.addEventListener('click', () => {
+        // Save settings
         saveSettings();
         
-        // Apply settings to UI
+        // Apply settings
         applySettings();
         
-        // Update current sort if needed
-        currentSort = {
-            field: appSettings.defaultSort.field,
-            direction: appSettings.defaultSort.direction
-        };
-        
-        // Update sort buttons UI
-        updateSortButtonsUI();
-        
-        // Reload items with new sort
-        loadItems();
-        
-        // Close settings modal
+        // Close modal
         settingsModal.style.display = 'none';
         
         // Show success message
-        const successMessage = document.createElement('div');
-        successMessage.className = 'success-message';
-        successMessage.textContent = 'Settings saved successfully!';
-        document.body.appendChild(successMessage);
+        showMessage('Settings saved successfully!');
         
-        // Remove success message after a delay
-        setTimeout(() => {
-            successMessage.remove();
-        }, 3000);
+        // Update currency symbol in UI
+        currencySymbolEl.textContent = appSettings.currency;
     });
     
+    // Export data button
+    document.getElementById('export-data').addEventListener('click', exportData);
+    
+    // Import data input
+    document.getElementById('import-data').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            importData(file);
+        }
+    });
+    
+    // Also apply filters and sort initially
+    applyFiltersAndSort();
+
     // Set up global event handlers for save and cancel edit buttons
     document.addEventListener('click', function(e) {
         // Handle save edit button in modal
@@ -532,24 +642,6 @@ function setupEventListeners() {
             cancelEdit();
         }
     });
-
-    // Add these new event listeners
-    const exportDataBtn = document.getElementById('export-data');
-    const importDataInput = document.getElementById('import-data');
-
-    if (exportDataBtn) {
-        exportDataBtn.addEventListener('click', exportData);
-    }
-
-    if (importDataInput) {
-        importDataInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                importData(e.target.files[0]);
-                // Reset the input so the same file can be selected again
-                e.target.value = '';
-            }
-        });
-    }
 }
 
 // Update sort buttons UI
@@ -605,17 +697,45 @@ function handlePhotoInput(event) {
     
     const reader = new FileReader();
     
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
         photoPreview.innerHTML = '';
         const img = document.createElement('img');
         img.src = e.target.result;
+        
         // Handle image loading errors
         img.onerror = function() {
             const placeholderImage = createPlaceholderImage('Image');
             this.src = placeholderImage;
             showMessage('Error loading image. Using placeholder instead.', true);
         };
+        
         photoPreview.appendChild(img);
+        
+        // Show compression controls
+        const compressionControls = document.getElementById('photo-compression-controls');
+        compressionControls.style.display = 'block';
+        
+        // Set initial value from settings
+        const photoQualitySlider = document.getElementById('item-photo-quality');
+        const photoQualityValue = document.getElementById('item-quality-value');
+        photoQualitySlider.value = appSettings.imageCompression.quality;
+        photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+        
+        // Setup compression preview
+        photoQualitySlider.addEventListener('input', async () => {
+            const quality = parseFloat(photoQualitySlider.value);
+            photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
+            
+            // Update compression preview
+            if (appSettings.imageCompression.showSize) {
+                await optimizeImageData(e.target.result, true, quality);
+            }
+        });
+        
+        // Generate initial preview with default quality
+        if (appSettings.imageCompression.showSize && e.target.result.startsWith('data:image')) {
+            await optimizeImageData(e.target.result, true, appSettings.imageCompression.quality);
+        }
     };
     
     reader.onerror = () => {
@@ -623,6 +743,29 @@ function handlePhotoInput(event) {
     };
     
     reader.readAsDataURL(file);
+}
+
+// Function to reset the add item form
+function resetItemForm() {
+    // Reset normal form fields
+    itemForm.reset();
+    photoPreview.innerHTML = '';
+    
+    // Reset compression controls
+    const compressionControls = document.getElementById('photo-compression-controls');
+    compressionControls.style.display = 'none';
+    
+    // Reset slider to default from settings
+    const photoQualitySlider = document.getElementById('item-photo-quality');
+    const photoQualityValue = document.getElementById('item-quality-value');
+    if (photoQualitySlider && photoQualityValue) {
+        photoQualitySlider.value = appSettings.imageCompression.quality;
+        photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+    }
+    
+    // Remove any file size info
+    const sizeInfo = document.getElementById('add-size-info');
+    if (sizeInfo) sizeInfo.remove();
 }
 
 // Save item with optimized image handling
@@ -645,8 +788,14 @@ async function saveItem(event) {
         // Get and optimize photo data
         let photoData = null;
         if (photoPreview.querySelector('img')) {
-            photoData = photoPreview.querySelector('img').src;
-            photoData = await optimizeImageData(photoData);
+            const imgSrc = photoPreview.querySelector('img').src;
+            
+            // Get the user-selected quality from the slider
+            const photoQualitySlider = document.getElementById('item-photo-quality');
+            const selectedQuality = photoQualitySlider ? parseFloat(photoQualitySlider.value) : appSettings.imageCompression.quality;
+            
+            const optimizedResult = await optimizeImageData(imgSrc, false, selectedQuality);
+            photoData = optimizedResult.optimizedDataUrl;
         }
         
         // Create item object
@@ -675,8 +824,7 @@ async function saveItem(event) {
             showMessage('Item saved successfully!');
             
             // Reset form
-            itemForm.reset();
-            photoPreview.innerHTML = '';
+            resetItemForm();
             
             // Update cache and UI
             refreshCacheAndUI();
@@ -898,165 +1046,238 @@ function showItemDetails(item) {
 
 // Edit item - Load item data into an edit form
 function editItem(id) {
-    // Get the item from IndexedDB
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(id);
+    // Find item by ID
+    const item = itemsCache.find(item => item.id === id);
+    if (!item) return;
     
-    request.onsuccess = () => {
-        const item = request.result;
-        currentEditItem = item;
-        
-        // Create edit form in modal
-        const placeholderImage = createPlaceholderImage(item.name);
-        
-        modalItemDetails.innerHTML = `
-            <form id="edit-item-form">
-                <div class="form-group">
-                    <label for="edit-photo">Photo:</label>
-                    <div class="photo-container">
-                        <div id="edit-photo-preview">
-                            <img src="${item.photo || placeholderImage}" alt="${item.name}" onerror="this.src='${placeholderImage}'; this.onerror=null;">
+    // Store current item for editing
+    currentEditItem = item;
+    
+    // Update modal content with edit form
+    modalItemDetails.innerHTML = `
+        <form id="edit-item-form">
+            <div class="form-group">
+                <label for="edit-item-photo">Photo</label>
+                <div class="photo-container">
+                    <input type="file" id="edit-item-photo" accept="image/*" capture>
+                    <button type="button" id="edit-take-photo" class="btn photo-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M9 3v3M15 3v3"/></svg>
+                        Change Photo
+                    </button>
+                    <div id="edit-photo-preview"></div>
+                    <div id="edit-compression-controls" class="compression-controls" style="display: none;">
+                        <label for="edit-photo-quality">Compression: <span id="edit-quality-value">50%</span></label>
+                        <div class="range-with-value">
+                            <input type="range" id="edit-photo-quality" min="0.1" max="1.0" step="0.1" value="0.5">
                         </div>
-                        <input type="file" id="edit-photo" accept="image/*" capture>
-                        <button type="button" id="edit-take-photo" class="btn photo-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M9 3v3M15 3v3"/></svg>
-                            Change Photo
-                        </button>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="edit-name">Item Name:</label>
-                    <input type="text" id="edit-name" required value="${item.name}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit-category">Category:</label>
-                    <div class="dropdown-wrapper">
-                        <input type="text" id="edit-category" class="dropdown-input" required value="${item.category}">
-                        <button type="button" class="dropdown-toggle" tabindex="-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-                        </button>
-                        <div id="edit-category-dropdown" class="dropdown-list"></div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit-shop">Shop:</label>
-                    <div class="dropdown-wrapper">
-                        <input type="text" id="edit-shop" class="dropdown-input" value="${item.shop || ''}">
-                        <button type="button" class="dropdown-toggle" tabindex="-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-                        </button>
-                        <div id="edit-shop-dropdown" class="dropdown-list"></div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit-price">Price:</label>
-                    <div class="price-input">
-                        <span class="currency">${appSettings.currency}</span>
-                        <input type="number" id="edit-price" step="0.01" min="0" value="${item.price || ''}">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit-notes">Notes:</label>
-                    <textarea id="edit-notes">${item.notes || ''}</textarea>
-                </div>
-                
-                <div class="modal-item-actions">
-                    <button type="button" class="btn save-edit-btn">Save Changes</button>
-                    <button type="button" class="btn secondary cancel-edit-btn">Cancel</button>
-                </div>
-            </form>
-        `;
-        
-        // Set up event listeners for the edit form
-        const editPhotoInput = document.getElementById('edit-photo');
-        const editTakePhotoBtn = document.getElementById('edit-take-photo');
-        const editPhotoPreview = document.getElementById('edit-photo-preview');
-        const editCategoryInput = document.getElementById('edit-category');
-        const editShopInput = document.getElementById('edit-shop');
-        const editCategoryDropdown = document.getElementById('edit-category-dropdown');
-        const editShopDropdown = document.getElementById('edit-shop-dropdown');
-        const saveEditBtn = document.querySelector('.save-edit-btn');
-        const cancelEditBtn = document.querySelector('.cancel-edit-btn');
-        
-        // Set up direct event handlers for save and cancel
-        if (saveEditBtn) {
-            saveEditBtn.onclick = function(e) {
-                e.preventDefault();
-                saveEditedItem();
-                return false;
-            };
-        }
-        
-        if (cancelEditBtn) {
-            cancelEditBtn.onclick = function(e) {
-                e.preventDefault();
-                cancelEdit();
-                return false;
-            };
-        }
-        
-        // Set up dropdowns
-        setupDropdown(editCategoryInput, editCategoryDropdown, 'category');
-        setupDropdown(editShopInput, editShopDropdown, 'shop');
-        
-        // Photo input handling
-        editPhotoInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            </div>
             
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                editPhotoPreview.innerHTML = '';
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                // Handle image loading errors
-                img.onerror = function() {
-                    this.src = placeholderImage;
-                    showMessage('Error loading image. Using placeholder instead.', true);
-                };
-                editPhotoPreview.appendChild(img);
-            };
-            reader.onerror = () => {
-                showMessage('Error reading image file', true);
-            };
-            reader.readAsDataURL(file);
-        });
-        
-        // Take photo button
-        editTakePhotoBtn.addEventListener('click', () => {
-            editPhotoInput.click();
-        });
-    };
+            <div class="form-group">
+                <label for="edit-item-name">Item Name</label>
+                <input type="text" id="edit-item-name" required value="${escapeHtml(item.name)}">
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-item-category">Category</label>
+                <div class="dropdown-wrapper">
+                    <input type="text" id="edit-item-category" class="dropdown-input" required value="${escapeHtml(item.category)}">
+                    <button type="button" class="dropdown-toggle" tabindex="-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div id="edit-category-dropdown" class="dropdown-list"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-item-shop">Shop</label>
+                <div class="dropdown-wrapper">
+                    <input type="text" id="edit-item-shop" class="dropdown-input" value="${escapeHtml(item.shop || '')}">
+                    <button type="button" class="dropdown-toggle" tabindex="-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div id="edit-shop-dropdown" class="dropdown-list"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-item-price">Price</label>
+                <div class="price-input">
+                    <span class="currency">${appSettings.currency}</span>
+                    <input type="number" id="edit-item-price" step="0.01" min="0" value="${item.price || ''}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-item-notes">Notes</label>
+                <textarea id="edit-item-notes">${escapeHtml(item.notes || '')}</textarea>
+            </div>
+            
+            <div class="modal-item-actions">
+                <button type="button" class="btn save-edit-btn primary">Save Changes</button>
+                <button type="button" class="btn cancel-edit-btn">Cancel</button>
+                <button type="button" class="btn delete-btn" data-id="${item.id}">Delete</button>
+            </div>
+        </form>
+    `;
     
-    request.onerror = (event) => {
-        console.error('Error getting item for edit:', event.target.error);
-        showMessage('Error loading item for editing. Please try again.', true);
-    };
+    // Show the modal
+    itemModal.style.display = 'block';
+    
+    // Add photo preview if available
+    const editPhotoPreview = document.getElementById('edit-photo-preview');
+    if (item.photo) {
+        const img = document.createElement('img');
+        img.src = item.photo;
+        img.onerror = function() {
+            this.src = createPlaceholderImage(item.name);
+        };
+        editPhotoPreview.appendChild(img);
+        
+        // Show compression controls
+        const compressionControls = document.getElementById('edit-compression-controls');
+        compressionControls.style.display = 'block';
+        
+        // Set initial value from settings
+        const photoQualitySlider = document.getElementById('edit-photo-quality');
+        const photoQualityValue = document.getElementById('edit-quality-value');
+        photoQualitySlider.value = appSettings.imageCompression.quality;
+        photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+        
+        // Show file size info if enabled
+        if (appSettings.imageCompression.showSize) {
+            optimizeImageData(item.photo, 'edit', appSettings.imageCompression.quality);
+            
+            // Add event listener for quality changes
+            photoQualitySlider.addEventListener('input', () => {
+                const quality = parseFloat(photoQualitySlider.value);
+                photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
+                
+                // Update preview with new quality
+                optimizeImageData(item.photo, 'edit', quality);
+            });
+        }
+    } else {
+        const placeholderImg = document.createElement('img');
+        placeholderImg.src = createPlaceholderImage(item.name);
+        editPhotoPreview.appendChild(placeholderImg);
+    }
+    
+    // Set up enhanced dropdowns for edit form
+    setupDropdown(
+        document.getElementById('edit-item-category'), 
+        document.getElementById('edit-category-dropdown'), 
+        'category'
+    );
+    
+    setupDropdown(
+        document.getElementById('edit-item-shop'), 
+        document.getElementById('edit-shop-dropdown'), 
+        'shop'
+    );
+    
+    // Handle photo change
+    const editPhotoInput = document.getElementById('edit-item-photo');
+    const editTakePhotoBtn = document.getElementById('edit-take-photo');
+    
+    editPhotoInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        
+        reader.onload = async (e) => {
+            editPhotoPreview.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            editPhotoPreview.appendChild(img);
+            
+            // Show compression controls
+            const compressionControls = document.getElementById('edit-compression-controls');
+            compressionControls.style.display = 'block';
+            
+            // Set initial value from settings
+            const photoQualitySlider = document.getElementById('edit-photo-quality');
+            const photoQualityValue = document.getElementById('edit-quality-value');
+            photoQualitySlider.value = appSettings.imageCompression.quality;
+            photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+            
+            // Setup compression preview
+            photoQualitySlider.addEventListener('input', () => {
+                const quality = parseFloat(photoQualitySlider.value);
+                photoQualityValue.textContent = `${Math.round(quality * 100)}%`;
+                
+                // Update compression preview
+                if (appSettings.imageCompression.showSize) {
+                    optimizeImageData(e.target.result, 'edit', quality);
+                }
+            });
+            
+            // Show file size info if enabled
+            if (appSettings.imageCompression.showSize) {
+                await optimizeImageData(e.target.result, 'edit', appSettings.imageCompression.quality);
+            }
+        };
+        
+        reader.onerror = () => {
+            showMessage('Error reading image file', true);
+        };
+        
+        reader.readAsDataURL(file);
+    });
+    
+    editTakePhotoBtn.addEventListener('click', () => {
+        editPhotoInput.click();
+    });
+    
+    // Fix delete button issue
+    fixDeleteButtonIssue();
 }
 
-// Save edited item
+// Cleanup function for edit form
+function cleanupEditForm() {
+    // Reset compression controls
+    const compressionControls = document.getElementById('edit-compression-controls');
+    if (compressionControls) {
+        compressionControls.style.display = 'none';
+    }
+    
+    // Reset slider to default from settings
+    const photoQualitySlider = document.getElementById('edit-photo-quality');
+    const photoQualityValue = document.getElementById('edit-quality-value');
+    if (photoQualitySlider && photoQualityValue) {
+        photoQualitySlider.value = appSettings.imageCompression.quality;
+        photoQualityValue.textContent = `${Math.round(appSettings.imageCompression.quality * 100)}%`;
+    }
+    
+    // Remove any file size info
+    const sizeInfo = document.getElementById('edit-size-info');
+    if (sizeInfo) sizeInfo.remove();
+    
+    // Reset current edit item
+    currentEditItem = null;
+}
+
+// Update cancel edit to use cleanup function
+function cancelEdit() {
+    // Store current item temporarily
+    const item = currentEditItem;
+    
+    // Clean up edit form
+    cleanupEditForm();
+    
+    // Show item details again if we had an item
+    if (item) {
+        showItemDetails(item);
+    } else {
+        // Close modal if no current edit item
+        itemModal.style.display = 'none';
+    }
+}
+
 async function saveEditedItem() {
     if (!currentEditItem) return;
-    
-    // Get values from edit form
-    const editNameInput = document.getElementById('edit-name');
-    const editCategoryInput = document.getElementById('edit-category');
-    const editShopInput = document.getElementById('edit-shop');
-    const editPriceInput = document.getElementById('edit-price');
-    const editNotesInput = document.getElementById('edit-notes');
-    const editPhotoPreview = document.getElementById('edit-photo-preview');
-    
-    // Validate required fields
-    if (!editNameInput.value || !editCategoryInput.value) {
-        showMessage('Please fill in all required fields', true);
-        return;
-    }
     
     // Show loading indicator
     const loadingIndicator = document.createElement('div');
@@ -1065,14 +1286,42 @@ async function saveEditedItem() {
     document.body.appendChild(loadingIndicator);
     
     try {
-        // Get and optimize photo data
-        let photoData = null;
-        if (editPhotoPreview.querySelector('img')) {
-            photoData = editPhotoPreview.querySelector('img').src;
-            photoData = await optimizeImageData(photoData);
+        // Get values from edit form
+        const editNameInput = document.getElementById('edit-item-name');
+        const editCategoryInput = document.getElementById('edit-item-category');
+        const editShopInput = document.getElementById('edit-item-shop');
+        const editPriceInput = document.getElementById('edit-item-price');
+        const editNotesInput = document.getElementById('edit-item-notes');
+        const editPhotoPreview = document.getElementById('edit-photo-preview');
+        
+        // Validate required fields
+        if (!editNameInput.value || !editCategoryInput.value) {
+            alert('Please fill in all required fields');
+            loadingIndicator.remove();
+            return;
         }
         
-        // Update item object
+        // Get current photo or new photo if changed
+        let photoData = currentEditItem.photo;
+        
+        // Check if photo has been changed
+        if (editPhotoPreview.querySelector('img')) {
+            const currentImgSrc = editPhotoPreview.querySelector('img').src;
+            
+            // Only update if it's different from the original
+            if (currentImgSrc !== photoData) {
+                // Get the selected quality from the slider
+                const photoQualitySlider = document.getElementById('edit-photo-quality');
+                const selectedQuality = photoQualitySlider ? parseFloat(photoQualitySlider.value) : appSettings.imageCompression.quality;
+                
+                const optimizedResult = await optimizeImageData(currentImgSrc, false, selectedQuality);
+                photoData = optimizedResult.optimizedDataUrl;
+            }
+        } else {
+            photoData = null;
+        }
+        
+        // Update the item object
         const updatedItem = {
             ...currentEditItem,
             name: editNameInput.value,
@@ -1083,7 +1332,7 @@ async function saveEditedItem() {
             photo: photoData
         };
         
-        // Save to IndexedDB
+        // Update in IndexedDB
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const request = store.put(updatedItem);
@@ -1091,19 +1340,19 @@ async function saveEditedItem() {
         request.onsuccess = () => {
             console.log('Item updated successfully');
             
-            // Reset current edit item
-            currentEditItem = null;
+            // Mark cache as dirty to reload
+            cacheDirty = true;
             
-            // Close modal
+            // Close the modal
             itemModal.style.display = 'none';
             
-            // Mark cache as dirty
-            cacheDirty = true;
+            // Clean up edit form
+            cleanupEditForm();
             
             // Show success message
             showMessage('Item updated successfully!');
             
-            // Refresh cache and UI
+            // Refresh items
             refreshCacheAndUI();
         };
         
@@ -1112,23 +1361,11 @@ async function saveEditedItem() {
             showMessage('Error updating item. Please try again.', true);
         };
     } catch (error) {
-        console.error('Error updating item:', error);
+        console.error('Error saving edited item:', error);
         showMessage('Error updating item. Please try again.', true);
     } finally {
         // Remove loading indicator
         loadingIndicator.remove();
-    }
-}
-
-// Cancel edit
-function cancelEdit() {
-    // Show item details again
-    if (currentEditItem) {
-        showItemDetails(currentEditItem);
-        currentEditItem = null;
-    } else {
-        // Close modal if no current edit item
-        itemModal.style.display = 'none';
     }
 }
 
