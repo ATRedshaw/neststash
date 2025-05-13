@@ -5,6 +5,12 @@ const DB_VERSION = 1;
 const STORE_NAME = 'items';
 const SETTINGS_KEY = 'neststashSettings';
 
+// Cache for items and dropdown values
+let itemsCache = [];
+let categoriesCache = [];
+let shopsCache = [];
+let cacheDirty = true;
+
 // Default settings
 let appSettings = {
     currency: '£',
@@ -140,10 +146,7 @@ function initDB() {
         console.log('Database opened successfully');
         
         // Load items when DB is ready
-        loadItems();
-        
-        // Update dropdowns
-        updateDropdownLists();
+        refreshCacheAndUI();
     };
 
     request.onupgradeneeded = (event) => {
@@ -165,8 +168,80 @@ function initDB() {
     };
 }
 
+// Refresh cache and update UI
+function refreshCacheAndUI() {
+    if (!db) return;
+    
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+    
+    request.onsuccess = () => {
+        // Update caches
+        itemsCache = request.result;
+        categoriesCache = [...new Set(itemsCache.map(item => item.category))].filter(Boolean).sort();
+        shopsCache = [...new Set(itemsCache.map(item => item.shop))].filter(Boolean).sort();
+        cacheDirty = false;
+        
+        // Update UI
+        loadItems();
+        updateDropdownLists();
+    };
+    
+    request.onerror = (event) => {
+        console.error('Error refreshing cache:', event.target.error);
+    };
+}
+
+// Optimize image data before storing
+function optimizeImageData(dataUrl) {
+    return new Promise((resolve) => {
+        if (!dataUrl || !dataUrl.startsWith('data:image')) {
+            resolve(dataUrl);
+            return;
+        }
+        
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+            
+            // Calculate new dimensions while maintaining aspect ratio
+            if (width > height && width > MAX_WIDTH) {
+                height = Math.round(height * (MAX_WIDTH / width));
+                width = MAX_WIDTH;
+            } else if (height > MAX_HEIGHT) {
+                width = Math.round(width * (MAX_HEIGHT / height));
+                height = MAX_HEIGHT;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Use lower quality JPEG for better compression
+            const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            resolve(optimizedDataUrl);
+        };
+        
+        img.onerror = function() {
+            // If there's an error, just return the original
+            resolve(dataUrl);
+        };
+        
+        img.src = dataUrl;
+    });
+}
+
 // Set up enhanced dropdowns
 function setupDropdown(inputElement, dropdownElement, itemType, placeholder = 'No items yet') {
+    if (!inputElement || !dropdownElement) return;
+    
     const dropdownToggle = inputElement.nextElementSibling;
     
     // Toggle dropdown on click
@@ -221,44 +296,35 @@ function closeAllDropdowns() {
     });
 }
 
-// Populate a dropdown with data
+// Use cache to populate dropdowns instead of DB query
 function populateDropdown(dropdownElement, searchText, itemType) {
-    if (!db) return;
+    if (!dropdownElement) return;
     
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
+    let uniqueValues = [];
     
-    request.onsuccess = () => {
-        const items = request.result;
-        let uniqueValues = [];
-        
-        if (itemType === 'category') {
-            uniqueValues = [...new Set(items.map(item => item.category))].filter(Boolean);
-        } else if (itemType === 'shop') {
-            uniqueValues = [...new Set(items.map(item => item.shop))].filter(Boolean);
-        }
-        
-        // Filter based on search text
-        if (searchText) {
-            const lowerSearch = searchText.toLowerCase();
-            uniqueValues = uniqueValues.filter(value => 
-                value.toLowerCase().includes(lowerSearch)
-            );
-        }
-        
-        // Sort values
-        uniqueValues.sort();
-        
-        // Populate dropdown
-        if (uniqueValues.length > 0) {
-            dropdownElement.innerHTML = uniqueValues.map(value => 
-                `<div class="dropdown-item">${value}</div>`
-            ).join('');
-        } else {
-            dropdownElement.innerHTML = `<div class="dropdown-item disabled">No matching ${itemType}s</div>`;
-        }
-    };
+    // Use cached values instead of querying the database each time
+    if (itemType === 'category') {
+        uniqueValues = [...categoriesCache];
+    } else if (itemType === 'shop') {
+        uniqueValues = [...shopsCache];
+    }
+    
+    // Filter based on search text
+    if (searchText) {
+        const lowerSearch = searchText.toLowerCase();
+        uniqueValues = uniqueValues.filter(value => 
+            value.toLowerCase().includes(lowerSearch)
+        );
+    }
+    
+    // Populate dropdown
+    if (uniqueValues.length > 0) {
+        dropdownElement.innerHTML = uniqueValues.map(value => 
+            `<div class="dropdown-item">${value}</div>`
+        ).join('');
+    } else {
+        dropdownElement.innerHTML = `<div class="dropdown-item disabled">No matching ${itemType}s</div>`;
+    }
 }
 
 // Update all dropdown lists
@@ -288,7 +354,6 @@ function setupEventListeners() {
             // If switching to view-items tab, refresh items
             if (tabId === 'view-items') {
                 loadItems();
-                updateDropdownLists();
             }
         });
     });
@@ -302,22 +367,27 @@ function setupEventListeners() {
     // Form submission
     itemForm.addEventListener('submit', saveItem);
     
-    // Search input
+    // Create debounced search and filter functions
+    const debouncedApplyFilters = debounce(() => {
+        applyFiltersAndSort();
+    }, 300);
+    
+    // Search input with debounce
     searchInput.addEventListener('input', () => {
         currentFilters.search = searchInput.value;
-        applyFiltersAndSort();
+        debouncedApplyFilters();
     });
     
-    // Category filter
+    // Category filter with debounce
     filterCategoryInput.addEventListener('input', () => {
         currentFilters.category = filterCategoryInput.value;
-        applyFiltersAndSort();
+        debouncedApplyFilters();
     });
     
-    // Shop filter
+    // Shop filter with debounce
     filterShopInput.addEventListener('input', () => {
         currentFilters.shop = filterShopInput.value;
-        applyFiltersAndSort();
+        debouncedApplyFilters();
     });
     
     // Clear filters
@@ -539,14 +609,24 @@ function handlePhotoInput(event) {
         photoPreview.innerHTML = '';
         const img = document.createElement('img');
         img.src = e.target.result;
+        // Handle image loading errors
+        img.onerror = function() {
+            const placeholderImage = createPlaceholderImage('Image');
+            this.src = placeholderImage;
+            showMessage('Error loading image. Using placeholder instead.', true);
+        };
         photoPreview.appendChild(img);
+    };
+    
+    reader.onerror = () => {
+        showMessage('Error reading image file', true);
     };
     
     reader.readAsDataURL(file);
 }
 
-// Save item to IndexedDB
-function saveItem(event) {
+// Save item with optimized image handling
+async function saveItem(event) {
     event.preventDefault();
     
     // Validate required fields
@@ -555,102 +635,97 @@ function saveItem(event) {
         return;
     }
     
-    // Get photo data
-    let photoData = null;
-    if (photoPreview.querySelector('img')) {
-        photoData = photoPreview.querySelector('img').src;
-    }
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Saving item...</span>';
+    document.body.appendChild(loadingIndicator);
     
-    // Create item object
-    const item = {
-        name: document.getElementById('item-name').value,
-        category: categoryInput.value.trim(),
-        shop: shopInput.value.trim(),
-        price: document.getElementById('item-price').value ? parseFloat(document.getElementById('item-price').value) : 0,
-        notes: document.getElementById('item-notes').value,
-        photo: photoData,
-        dateAdded: new Date().toISOString()
-    };
-    
-    // Save to IndexedDB
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.add(item);
-    
-    request.onsuccess = () => {
-        console.log('Item added successfully');
-        
-        // Update dropdowns with new values
-        updateDropdownLists();
-        
-        // Show success message
-        const successMessage = document.createElement('div');
-        successMessage.className = 'success-message';
-        successMessage.textContent = 'Item saved successfully!';
-        itemForm.appendChild(successMessage);
-        
-        // Remove success message after a delay
-        setTimeout(() => {
-            successMessage.remove();
-        }, 3000);
-        
-        // Reset form
-        itemForm.reset();
-        photoPreview.innerHTML = '';
-        
-        // Switch to view tab
-        document.querySelector('[data-tab="view-items"]').click();
-    };
-    
-    request.onerror = (event) => {
-        console.error('Error adding item:', event.target.error);
-        alert('Error saving item. Please try again.');
-    };
-}
-
-// Load all items from IndexedDB
-function loadItems() {
-    // Get all items from IndexedDB
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
-    
-    request.onsuccess = () => {
-        const items = request.result;
-        
-        if (items.length === 0) {
-            itemsContainer.innerHTML = `
-                <div class="no-items-center">
-                    <p class="no-items">No items found. Add some items to get started!</p>
-                </div>
-            `;
-            return;
+    try {
+        // Get and optimize photo data
+        let photoData = null;
+        if (photoPreview.querySelector('img')) {
+            photoData = photoPreview.querySelector('img').src;
+            photoData = await optimizeImageData(photoData);
         }
         
-        // Apply filters and sort to all items
-        filterAndSortItems(items);
-    };
-    
-    request.onerror = (event) => {
-        console.error('Error loading items:', event.target.error);
-        itemsContainer.innerHTML = `
-            <div class="no-items-center">
-                <p class="error">Error loading items. Please refresh the page.</p>
-            </div>
-        `;
-    };
+        // Create item object
+        const item = {
+            name: document.getElementById('item-name').value,
+            category: categoryInput.value.trim(),
+            shop: shopInput.value.trim(),
+            price: document.getElementById('item-price').value ? parseFloat(document.getElementById('item-price').value) : 0,
+            notes: document.getElementById('item-notes').value,
+            photo: photoData,
+            dateAdded: new Date().toISOString()
+        };
+        
+        // Save to IndexedDB
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.add(item);
+        
+        request.onsuccess = () => {
+            console.log('Item added successfully');
+            
+            // Mark cache as dirty
+            cacheDirty = true;
+            
+            // Show success message using the showMessage helper function
+            showMessage('Item saved successfully!');
+            
+            // Reset form
+            itemForm.reset();
+            photoPreview.innerHTML = '';
+            
+            // Update cache and UI
+            refreshCacheAndUI();
+            
+            // Switch to view tab
+            document.querySelector('[data-tab="view-items"]').click();
+        };
+        
+        request.onerror = (event) => {
+            console.error('Error adding item:', event.target.error);
+            showMessage('Error saving item. Please try again.', true);
+        };
+    } catch (error) {
+        console.error('Error saving item:', error);
+        showMessage('Error saving item. Please try again.', true);
+    } finally {
+        // Remove loading indicator
+        loadingIndicator.remove();
+    }
 }
 
-// Apply filters and sort to current items
-function applyFiltersAndSort() {
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
+// Load items from cache
+function loadItems() {
+    if (cacheDirty) {
+        refreshCacheAndUI();
+        return;
+    }
     
-    request.onsuccess = () => {
-        const items = request.result;
-        filterAndSortItems(items);
-    };
+    if (itemsCache.length === 0) {
+        itemsContainer.innerHTML = `
+            <div class="no-items-center">
+                <p class="no-items">No items found. Add some items to get started!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Apply filters and sort
+    filterAndSortItems(itemsCache);
+}
+
+// Apply filters and sort to cached items
+function applyFiltersAndSort() {
+    if (cacheDirty) {
+        refreshCacheAndUI();
+        return;
+    }
+    
+    filterAndSortItems(itemsCache);
 }
 
 // Filter and sort items then display them
@@ -754,7 +829,7 @@ function displayItems(items) {
         
         itemCard.innerHTML = `
             <div class="item-image">
-                <img src="${item.photo || placeholderImage}" alt="${item.name}">
+                <img src="${item.photo || placeholderImage}" alt="${item.name}" onerror="this.src='${placeholderImage}'; this.onerror=null;">
             </div>
             <div class="item-info">
                 <h3 class="item-name">${item.name}</h3>
@@ -790,7 +865,7 @@ function showItemDetails(item) {
     // Create the modal content with direct delete function calls
     modalItemDetails.innerHTML = `
         <div class="modal-item-image">
-            <img src="${item.photo || placeholderImage}" alt="${item.name}">
+            <img src="${item.photo || placeholderImage}" alt="${item.name}" onerror="this.src='${placeholderImage}'; this.onerror=null;">
         </div>
         <div class="modal-item-info">
             <h2>${item.name}</h2>
@@ -802,8 +877,8 @@ function showItemDetails(item) {
             <div class="item-notes">${item.notes || 'No notes'}</div>
         </div>
         <div class="modal-item-actions">
-            <button class="btn edit-btn" id="edit-item-${item.id}">Edit Item</button>
-            <button class="btn delete-btn" id="delete-item-${item.id}">Delete Item</button>
+            <button class="btn edit-btn" id="edit-item-${item.id}" data-id="${item.id}">Edit Item</button>
+            <button class="btn delete-btn" id="delete-item-${item.id}" data-id="${item.id}">Delete Item</button>
         </div>
     `;
     
@@ -841,7 +916,7 @@ function editItem(id) {
                     <label for="edit-photo">Photo:</label>
                     <div class="photo-container">
                         <div id="edit-photo-preview">
-                            <img src="${item.photo || placeholderImage}" alt="${item.name}">
+                            <img src="${item.photo || placeholderImage}" alt="${item.name}" onerror="this.src='${placeholderImage}'; this.onerror=null;">
                         </div>
                         <input type="file" id="edit-photo" accept="image/*" capture>
                         <button type="button" id="edit-take-photo" class="btn photo-btn">
@@ -940,7 +1015,15 @@ function editItem(id) {
                 editPhotoPreview.innerHTML = '';
                 const img = document.createElement('img');
                 img.src = e.target.result;
+                // Handle image loading errors
+                img.onerror = function() {
+                    this.src = placeholderImage;
+                    showMessage('Error loading image. Using placeholder instead.', true);
+                };
                 editPhotoPreview.appendChild(img);
+            };
+            reader.onerror = () => {
+                showMessage('Error reading image file', true);
             };
             reader.readAsDataURL(file);
         });
@@ -953,12 +1036,12 @@ function editItem(id) {
     
     request.onerror = (event) => {
         console.error('Error getting item for edit:', event.target.error);
-        alert('Error loading item for editing. Please try again.');
+        showMessage('Error loading item for editing. Please try again.', true);
     };
 }
 
 // Save edited item
-function saveEditedItem() {
+async function saveEditedItem() {
     if (!currentEditItem) return;
     
     // Get values from edit form
@@ -971,63 +1054,70 @@ function saveEditedItem() {
     
     // Validate required fields
     if (!editNameInput.value || !editCategoryInput.value) {
-        alert('Please fill in all required fields');
+        showMessage('Please fill in all required fields', true);
         return;
     }
     
-    // Get photo data
-    let photoData = null;
-    if (editPhotoPreview.querySelector('img')) {
-        photoData = editPhotoPreview.querySelector('img').src;
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Saving changes...</span>';
+    document.body.appendChild(loadingIndicator);
+    
+    try {
+        // Get and optimize photo data
+        let photoData = null;
+        if (editPhotoPreview.querySelector('img')) {
+            photoData = editPhotoPreview.querySelector('img').src;
+            photoData = await optimizeImageData(photoData);
+        }
+        
+        // Update item object
+        const updatedItem = {
+            ...currentEditItem,
+            name: editNameInput.value,
+            category: editCategoryInput.value.trim(),
+            shop: editShopInput.value.trim(),
+            price: editPriceInput.value ? parseFloat(editPriceInput.value) : 0,
+            notes: editNotesInput.value,
+            photo: photoData
+        };
+        
+        // Save to IndexedDB
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(updatedItem);
+        
+        request.onsuccess = () => {
+            console.log('Item updated successfully');
+            
+            // Reset current edit item
+            currentEditItem = null;
+            
+            // Close modal
+            itemModal.style.display = 'none';
+            
+            // Mark cache as dirty
+            cacheDirty = true;
+            
+            // Show success message
+            showMessage('Item updated successfully!');
+            
+            // Refresh cache and UI
+            refreshCacheAndUI();
+        };
+        
+        request.onerror = (event) => {
+            console.error('Error updating item:', event.target.error);
+            showMessage('Error updating item. Please try again.', true);
+        };
+    } catch (error) {
+        console.error('Error updating item:', error);
+        showMessage('Error updating item. Please try again.', true);
+    } finally {
+        // Remove loading indicator
+        loadingIndicator.remove();
     }
-    
-    // Update item object
-    const updatedItem = {
-        ...currentEditItem,
-        name: editNameInput.value,
-        category: editCategoryInput.value.trim(),
-        shop: editShopInput.value.trim(),
-        price: editPriceInput.value ? parseFloat(editPriceInput.value) : 0,
-        notes: editNotesInput.value,
-        photo: photoData
-    };
-    
-    // Save to IndexedDB
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(updatedItem);
-    
-    request.onsuccess = () => {
-        console.log('Item updated successfully');
-        
-        // Reset current edit item
-        currentEditItem = null;
-        
-        // Close modal
-        itemModal.style.display = 'none';
-        
-        // Show success message
-        const successMessage = document.createElement('div');
-        successMessage.className = 'success-message';
-        successMessage.textContent = 'Item updated successfully!';
-        document.body.appendChild(successMessage);
-        
-        // Remove success message after a delay
-        setTimeout(() => {
-            successMessage.remove();
-        }, 3000);
-        
-        // Refresh items
-        loadItems();
-        
-        // Update dropdown lists
-        updateDropdownLists();
-    };
-    
-    request.onerror = (event) => {
-        console.error('Error updating item:', event.target.error);
-        alert('Error updating item. Please try again.');
-    };
 }
 
 // Cancel edit
@@ -1042,34 +1132,50 @@ function cancelEdit() {
     }
 }
 
-// Delete item from IndexedDB - completely simplified version
+// Delete item from IndexedDB
 function deleteItem(id) {
     console.log('DIRECT DELETE: Deleting item with ID:', id);
     
     // Simple sanity check
     if (!id || !db) {
         console.error('Cannot delete - invalid ID or DB not ready');
+        showMessage('Error: Cannot delete item', true);
         return;
     }
+    
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Deleting item...</span>';
+    document.body.appendChild(loadingIndicator);
     
     // Open a transaction and delete directly
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    store.delete(Number(id));
+    const request = store.delete(Number(id));
     
-    // Close modal immediately
-    itemModal.style.display = 'none';
+    request.onsuccess = () => {
+        // Close modal immediately
+        itemModal.style.display = 'none';
+        
+        // Mark cache as dirty
+        cacheDirty = true;
+        
+        // Show a temporary success message
+        showMessage('Item deleted successfully');
+        
+        // Refresh cache and UI
+        refreshCacheAndUI();
+        
+        // Remove loading indicator
+        loadingIndicator.remove();
+    };
     
-    // Refresh the items display
-    console.log('Refreshing items after delete');
-    loadItems();
-    
-    // Show a temporary success message
-    const message = document.createElement('div');
-    message.className = 'success-message';
-    message.textContent = 'Item deleted!';
-    document.body.appendChild(message);
-    setTimeout(() => message.remove(), 2000);
+    request.onerror = (event) => {
+        console.error('Error deleting item:', event.target.error);
+        showMessage('Error deleting item. Please try again.', true);
+        loadingIndicator.remove();
+    };
 }
 
 // Add this function at the end of the file
@@ -1167,6 +1273,12 @@ function exportData() {
 // Import data from JSON file
 function importData(file) {
     if (!file) return;
+    
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<div class="spinner"></div><span>Importing data...</span>';
+    document.body.appendChild(loadingIndicator);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1180,6 +1292,7 @@ function importData(file) {
 
             // Confirm with user
             if (!confirm(`This will import ${data.items.length} items. Existing items will be preserved. Continue?`)) {
+                loadingIndicator.remove();
                 return;
             }
 
@@ -1195,22 +1308,34 @@ function importData(file) {
             });
 
             transaction.oncomplete = () => {
+                // Mark cache as dirty
+                cacheDirty = true;
+                
                 showMessage('Data imported successfully!');
-                loadItems(); // Refresh the items display
+                
+                // Refresh cache and UI
+                refreshCacheAndUI();
+                
+                // Remove loading indicator
+                loadingIndicator.remove();
             };
 
-            transaction.onerror = () => {
+            transaction.onerror = (error) => {
+                console.error('Import transaction error:', error);
                 showMessage('Error importing data. Please try again.', true);
+                loadingIndicator.remove();
             };
 
         } catch (error) {
             console.error('Import error:', error);
             showMessage('Invalid file format. Please select a valid backup file.', true);
+            loadingIndicator.remove();
         }
     };
 
     reader.onerror = () => {
         showMessage('Error reading file. Please try again.', true);
+        loadingIndicator.remove();
     };
 
     reader.readAsText(file);
@@ -1223,4 +1348,26 @@ function showMessage(message, isError = false) {
     messageEl.textContent = message;
     document.body.appendChild(messageEl);
     setTimeout(() => messageEl.remove(), 3000);
-} 
+}
+
+// Debounce helper function to prevent excessive calls
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// Update search and filters with debouncing
+const debouncedSearch = debounce(() => {
+    applyFiltersAndSort();
+}, 300);
+
+searchInput.addEventListener('input', () => {
+    currentFilters.search = searchInput.value;
+    debouncedSearch();
+});
+
+// Apply similar debouncing to other filter inputs
+// ... existing code ... 

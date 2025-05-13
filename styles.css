@@ -194,6 +194,7 @@ input[type="number"] {
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 100%;
 }
 
 input[type="file"] {
@@ -205,13 +206,16 @@ input[type="file"] {
     align-items: center;
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-md);
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
 }
 
 .photo-btn svg {
     margin-right: var(--spacing-xs);
 }
 
-#photo-preview {
+#photo-preview, #edit-photo-preview {
     margin-top: var(--spacing-md);
     width: 100%;
     max-width: 300px;
@@ -223,20 +227,25 @@ input[type="file"] {
     justify-content: center;
     overflow: hidden;
     background-color: var(--light-gray);
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    position: relative;
 }
 
 #photo-preview::before {
     content: "Image preview";
     display: block;
     text-align: center;
+    position: absolute;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    z-index: 1;
 }
 
-#photo-preview img {
+#photo-preview img, #edit-photo-preview img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    position: relative;
+    z-index: 2;
 }
 
 #photo-preview:has(img)::before {
@@ -555,15 +564,19 @@ input[type="file"] {
     border-radius: var(--border-radius);
     text-align: center;
     font-weight: 500;
-    margin-top: var(--spacing-md);
     animation: fadeInDown 0.3s ease-in-out;
     position: fixed;
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
-    box-shadow: var(--shadow);
-    min-width: 200px;
+    box-shadow: var(--shadow-lg);
+    min-width: 250px;
+    max-width: 90%;
+}
+
+.success-message.error {
+    background-color: #e74c3c;
 }
 
 @keyframes fadeInDown {
@@ -772,6 +785,7 @@ input[type="file"] {
 }
 
 .search-bar {
+    position: relative;
     width: 100%;
 }
 
@@ -781,12 +795,23 @@ input[type="file"] {
     gap: var(--spacing-md);
 }
 
+@media screen and (min-width: 768px) {
+    .filter-fields {
+        flex-direction: row;
+    }
+
+    .filter-fields .dropdown-wrapper {
+        flex: 1;
+    }
+}
+
 .filter-fields .dropdown-wrapper {
     width: 100%;
 }
 
 .sort-section {
     padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
 }
 
 .sort-options {
@@ -829,6 +854,7 @@ input[type="file"] {
     display: flex;
     justify-content: flex-end;
     margin-top: var(--spacing-md);
+    width: 100%;
 }
 
 @media screen and (min-width: 768px) {
@@ -842,24 +868,16 @@ input[type="file"] {
         min-width: 300px;
     }
     
-    .search-and-filters {
-        flex-direction: column;
-    }
-    
     .sort-section {
         flex: 1;
         min-width: 300px;
         padding-top: 0;
         padding-left: var(--spacing-lg);
         border-left: 1px solid var(--border-color);
-    }
-    
-    .sort-options {
-        justify-content: flex-start;
+        border-top: none;
     }
     
     .filter-actions {
-        width: 100%;
         border-top: 1px solid var(--border-color);
         padding-top: var(--spacing-md);
         margin-top: var(--spacing-md);
@@ -940,27 +958,6 @@ input[type="file"] {
         padding-top: var(--spacing-md);
         margin-top: var(--spacing-md);
     }
-}
-
-/* Also improve edit photo preview */
-#edit-photo-preview {
-    margin-top: var(--spacing-md);
-    width: 100%;
-    max-width: 300px;
-    height: 200px;
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    background-color: var(--light-gray);
-}
-
-#edit-photo-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
 }
 
 /* Add this near other item-related styles */
@@ -1063,4 +1060,34 @@ input[type="file"] {
     .data-buttons .btn {
         flex: 1;
     }
+}
+
+/* Loading indicator */
+.loading-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    color: white;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 } 
