@@ -4,6 +4,8 @@ const DB_NAME = 'NeststashDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'items';
 const SETTINGS_KEY = 'neststashSettings';
+const APP_VERSION_KEY = 'neststashVersion';
+const CURRENT_VERSION = 'neststash-v2'; // Must match the version in service-worker.js
 
 // Cache for items and dropdown values
 let itemsCache = [];
@@ -81,6 +83,9 @@ let currentSort = {
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
+    // Check for app updates
+    checkForUpdates();
+    
     // Load saved settings
     loadSettings();
     
@@ -92,6 +97,76 @@ function initApp() {
 
     // Set up event listeners
     setupEventListeners();
+}
+
+// Check if the app needs an update
+async function checkForUpdates() {
+    // Only check if service workers are supported
+    if ('serviceWorker' in navigator) {
+        try {
+            // Get the last stored version
+            const storedVersion = localStorage.getItem(APP_VERSION_KEY);
+            
+            // Check the current service worker version
+            const response = await fetch('/neststash/app-version');
+            const currentVersion = await response.text();
+            
+            // Store the current version
+            localStorage.setItem(APP_VERSION_KEY, currentVersion);
+            
+            // If versions don't match, show update notification
+            if (storedVersion && storedVersion !== currentVersion) {
+                showUpdateNotification();
+            }
+        } catch (error) {
+            console.error('Error checking for updates:', error);
+        }
+    }
+}
+
+// Show update notification
+function showUpdateNotification() {
+    const notification = document.createElement('div');
+    notification.className = 'update-notification';
+    notification.innerHTML = `
+        <div class="update-content">
+            <p>A new version of Neststash is available!</p>
+            <div class="update-actions">
+                <button id="update-now" class="btn primary">Update Now</button>
+                <button id="update-later" class="btn secondary">Later</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Handle update now button
+    document.getElementById('update-now').addEventListener('click', () => {
+        updateApplication();
+        notification.remove();
+    });
+    
+    // Handle update later button
+    document.getElementById('update-later').addEventListener('click', () => {
+        notification.remove();
+    });
+}
+
+// Update the application
+function updateApplication() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(registration => {
+            if (registration && registration.waiting) {
+                // Send message to service worker to skip waiting
+                registration.waiting.postMessage({ action: 'skipWaiting' });
+            }
+            
+            // Force reload from server
+            window.location.reload(true);
+        });
+    } else {
+        // Fallback for browsers without service worker support
+        window.location.reload(true);
+    }
 }
 
 // Load saved settings from localStorage
@@ -679,11 +754,8 @@ function setupEventListeners() {
                 // Show loading message
                 showMessage('Refreshing application...');
                 
-                // Wait a moment to show the message before refreshing
-                setTimeout(() => {
-                    // Force reload from server, not from cache
-                    window.location.reload(true);
-                }, 500);
+                // Update the application
+                updateApplication();
             }
         });
     }

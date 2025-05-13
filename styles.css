@@ -1311,6 +1311,50 @@ input[type="file"] {
     margin-top: var(--spacing-lg);
 }
 
+/* Update notification */
+.update-notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--white);
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 450px;
+    z-index: 1000;
+    animation: slideInUp 0.3s ease forwards;
+    border-top: 4px solid var(--primary-color);
+}
+
+.update-content {
+    padding: var(--spacing-lg);
+}
+
+.update-content p {
+    font-weight: 500;
+    font-size: 1.1rem;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-color);
+}
+
+.update-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translate(-50%, 100px);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
 @media (max-width: 480px) {
     .confirmation-actions {
         flex-direction: column;

@@ -1,4 +1,6 @@
-const CACHE_NAME = 'neststash-v1';
+// Application version - change this when updating the app
+const APP_VERSION = 'neststash-v2'; // Increment this with each significant update
+const CACHE_NAME = `${APP_VERSION}-cache`;
 const BASE_PATH = '/neststash';
 const ASSETS_TO_CACHE = [
   `${BASE_PATH}/`,
@@ -16,10 +18,13 @@ const ASSETS_TO_CACHE = [
 
 // Install event - cache assets
 self.addEventListener('install', (event) => {
+  // Skip waiting forces the waiting service worker to become the active service worker
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
+        console.log('Opened cache:', CACHE_NAME);
         return cache.addAll(ASSETS_TO_CACHE);
       })
   );
@@ -27,6 +32,9 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+  // Claim clients so the new service worker takes over immediately
+  event.waitUntil(self.clients.claim());
+  
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -41,37 +49,67 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fall back to network
+// Fetch event with network-first strategy for app files and cache-first for assets
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
+  const url = new URL(event.request.url);
+  
+  // Handle app update check
+  if (url.pathname.endsWith('/app-version')) {
+    return event.respondWith(new Response(APP_VERSION, {
+      headers: { 'Content-Type': 'text/plain' }
+    }));
+  }
+  
+  // Network-first strategy for HTML, JS, and CSS files
+  if (url.pathname.endsWith('.html') || 
+      url.pathname.endsWith('.js') || 
+      url.pathname.endsWith('.css') ||
+      url.pathname === `${BASE_PATH}/` ||
+      url.pathname === BASE_PATH) {
+    
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Cache the latest version
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
           return response;
-        }
-
-        // Clone the request
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then(
-          (response) => {
-            // Check if we received a valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone the response
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
+        })
+        .catch(() => {
+          // If network fails, try from cache
+          return caches.match(event.request);
+        })
+    );
+  } else {
+    // Cache-first strategy for other resources (images, etc.)
+    event.respondWith(
+      caches.match(event.request)
+        .then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
           }
-        );
-      })
-  );
+          
+          return fetch(event.request)
+            .then(response => {
+              // Cache the asset
+              if (response && response.status === 200) {
+                const responseToCache = response.clone();
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(event.request, responseToCache);
+                });
+              }
+              return response;
+            });
+        })
+    );
+  }
+});
+
+// Listen for messages from the client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
 }); 
